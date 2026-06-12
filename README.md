@@ -11,6 +11,10 @@ Desktop-specific Apple Magic Mouse gesture packages for Linux.
 
 ## Pop!_OS COSMIC / COSMIC Wayland
 
+<p align="left">
+  <img src="cosmic-wayland/assets/magic-mouse-control-panel.svg" width="96" alt="Magic Mouse Control Panel icon">
+</p>
+
 ### Quick install from GitHub
 
 ```bash
