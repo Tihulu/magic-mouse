@@ -2,7 +2,7 @@
 
 Apple Magic Mouse gesture setup, workspace switching, and GUI control panel for **Pop!_OS / COSMIC Wayland**.
 
-This folder contains the current stable COSMIC Wayland package: **v1.4.3**.
+This folder contains the current stable COSMIC Wayland package: **v1.4.4**.
 
 The package avoids unreliable synthetic workspace keyboard shortcuts and uses a stateful `cosmic-ws` helper powered by `cos-cli` for COSMIC workspace switching.
 
@@ -17,6 +17,8 @@ Alternative with `wget`:
 ```bash
 bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/quick-install.sh)"
 ```
+
+The quick installer also applies the **v1.4.4 COSMIC dock icon fix** after installation.
 
 ## Manual install
 
@@ -49,6 +51,7 @@ Default source path used by this package:
 - user systemd service integration for the Magic Mouse gesture daemon
 - local udev rule and immediate ACL repair for Apple Magic Mouse HID raw access
 - Magic Mouse-style launcher icon
+- v1.4.4 dock icon matching fix for the Tk control panel on COSMIC
 
 ## Expected behavior
 
@@ -60,6 +63,12 @@ Default source path used by this package:
 
 ```bash
 magic-mouse-control-panel
+```
+
+For best dock icon matching on COSMIC:
+
+```bash
+gtk-launch magic-mouse-control-panel
 ```
 
 CLI fallback:
@@ -97,10 +106,10 @@ Or run the steps manually:
 
 Natural scrolling is a native COSMIC/libinput setting. Some COSMIC builds may ignore mouse natural scrolling at runtime. Desktop/workspace direction should be fixed in Step 6 with command swapping.
 
-If the dock icon does not match under COSMIC Wayland, this is likely a Tk/Wayland app-id limitation. The GUI remains functional; a future GTK UI would provide cleaner dock integration.
+Dock icon matching is handled by the quick installer through the COSMIC/Tk runtime window class fallback.
 
 ## Version
 
 ```text
-1.4.3
+1.4.4
 ```
