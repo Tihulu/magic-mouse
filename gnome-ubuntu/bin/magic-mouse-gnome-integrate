@@ -10,11 +10,11 @@ Usage:
 
 systemd-env:
   Adds a user-service drop-in setting MAGIC_MOUSE_WS_CMD=$HOME/.local/bin/magic-mouse-ws.
-  This only helps daemons that read MAGIC_MOUSE_WS_CMD.
+  This helps older daemons that read MAGIC_MOUSE_WS_CMD.
 
 install-cosmic-ws-shim:
   Installs ~/.local/bin/cosmic-ws as a compatibility wrapper that delegates to magic-mouse-ws.
-  This is useful when an older gesture daemon still calls cosmic-ws.
+  Useful when an older gesture daemon still calls cosmic-ws.
 HELP
 }
 

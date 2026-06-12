@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+APP_DIR = Path.home() / ".config" / "magic-mouse"
+CONFIG_PATH = APP_DIR / "config.json"
+DEFAULT_CONFIG = {
+    "backend": "evdev",
+    "device_name_regex": "Magic Mouse|Magic Trackpad",
+    "min_fingers": 2,
+    "threshold_x": 700,
+    "threshold_y": 600,
+    "diagonal_bias": 1.25,
+    "min_duration_ms": 60,
+    "max_duration_ms": 1500,
+    "cooldown_ms": 550,
+    "invert_x": False,
+    "invert_y": False,
+    "dry_run": False,
+    "log_level": "info",
+    "actions": {
+        "swipe_up": "magic-mouse-ws up",
+        "swipe_down": "magic-mouse-ws down",
+        "swipe_left": "magic-mouse-ws left",
+        "swipe_right": "magic-mouse-ws right",
+    },
+    "enabled": {
+        "swipe_up": True,
+        "swipe_down": True,
+        "swipe_left": True,
+        "swipe_right": True,
+    },
+}
+
+
+def deep_merge(base, override):
+    out = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = deep_merge(out[key], value)
+        else:
+            out[key] = value
+    return out
+
+
+def load_config():
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if not CONFIG_PATH.exists():
+        save_config(DEFAULT_CONFIG)
+        return dict(DEFAULT_CONFIG)
+    try:
+        return deep_merge(DEFAULT_CONFIG, json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
+    except Exception as exc:
+        print(f"Config okunamadı: {CONFIG_PATH}: {exc}", file=sys.stderr)
+        return dict(DEFAULT_CONFIG)
+
+
+def save_config(config):
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+
+
+def run_cmd(cmd, timeout=12):
+    env = os.environ.copy()
+    env["PATH"] = str(Path.home() / ".local" / "bin") + os.pathsep + env.get("PATH", "")
+    try:
+        p = subprocess.run(cmd, shell=True, text=True, capture_output=True, timeout=timeout, env=env)
+        out = (p.stdout or "") + (p.stderr or "")
+        return p.returncode, out.strip()
+    except subprocess.TimeoutExpired:
+        return 124, "timeout"
+    except Exception as exc:
+        return 1, str(exc)
+
+
+def cli_export():
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    out = Path("/tmp") / f"magic-mouse-settings-{ts}.json"
+    out.write_text(json.dumps(load_config(), indent=2) + "\n", encoding="utf-8")
+    print(out)
+
+
+class Panel:
+    def __init__(self, root):
+        import tkinter as tk
+        from tkinter import ttk
+        self.tk = tk
+        self.ttk = ttk
+        self.root = root
+        self.config = load_config()
+        root.title("Magic Mouse Control Panel")
+        root.geometry("780x660")
+
+        self.vars = {}
+        main = ttk.Frame(root, padding=12)
+        main.pack(fill="both", expand=True)
+
+        title = ttk.Label(main, text="Magic Mouse GNOME/Ubuntu", font=("Sans", 16, "bold"))
+        title.pack(anchor="w")
+        subtitle = ttk.Label(main, text="İki parmak swipe → GNOME workspace komutları. Ayarları kaydedince servisi yeniden başlat.")
+        subtitle.pack(anchor="w", pady=(0, 10))
+
+        nb = ttk.Notebook(main)
+        nb.pack(fill="both", expand=True)
+        self.general = ttk.Frame(nb, padding=10)
+        self.actions = ttk.Frame(nb, padding=10)
+        self.service = ttk.Frame(nb, padding=10)
+        nb.add(self.general, text="Ayarlar")
+        nb.add(self.actions, text="Hareketler")
+        nb.add(self.service, text="Servis / Tanı")
+
+        self._build_general()
+        self._build_actions()
+        self._build_service()
+
+        buttons = ttk.Frame(main)
+        buttons.pack(fill="x", pady=(10, 0))
+        ttk.Button(buttons, text="Kaydet", command=self.save).pack(side="left")
+        ttk.Button(buttons, text="Kaydet + Restart", command=self.save_restart).pack(side="left", padx=8)
+        ttk.Button(buttons, text="Kapat", command=root.destroy).pack(side="right")
+
+    def _entry(self, parent, key, label, row, width=32):
+        ttk = self.ttk
+        tk = self.tk
+        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=4)
+        v = tk.StringVar(value=str(self.config.get(key, DEFAULT_CONFIG.get(key, ""))))
+        self.vars[key] = v
+        ttk.Entry(parent, textvariable=v, width=width).grid(row=row, column=1, sticky="ew", pady=4)
+        return v
+
+    def _check(self, parent, key, label, row):
+        ttk = self.ttk
+        tk = self.tk
+        v = tk.BooleanVar(value=bool(self.config.get(key, DEFAULT_CONFIG.get(key, False))))
+        self.vars[key] = v
+        ttk.Checkbutton(parent, text=label, variable=v).grid(row=row, column=0, columnspan=2, sticky="w", pady=4)
+        return v
+
+    def _build_general(self):
+        f = self.general
+        f.columnconfigure(1, weight=1)
+        self._entry(f, "device_name_regex", "Cihaz adı regex", 0, 46)
+        self._entry(f, "min_fingers", "Parmak sayısı", 1)
+        self._entry(f, "threshold_x", "Yatay eşik", 2)
+        self._entry(f, "threshold_y", "Dikey eşik", 3)
+        self._entry(f, "diagonal_bias", "Diagonal bias", 4)
+        self._entry(f, "cooldown_ms", "Cooldown ms", 5)
+        self._entry(f, "min_duration_ms", "Min süre ms", 6)
+        self._entry(f, "max_duration_ms", "Max süre ms", 7)
+        self._entry(f, "log_level", "Log level", 8)
+        self._check(f, "invert_x", "Yatay yönü ters çevir", 9)
+        self._check(f, "invert_y", "Dikey yönü ters çevir", 10)
+        self._check(f, "dry_run", "Dry run: algıla ama komut çalıştırma", 11)
+        help_txt = "Not: Hareket yönleri ters gelirse önce invert_y / invert_x ile dene. Eşik büyürse hareket daha zor algılanır."
+        self.ttk.Label(f, text=help_txt, wraplength=680).grid(row=12, column=0, columnspan=2, sticky="w", pady=12)
+
+    def _build_actions(self):
+        f = self.actions
+        f.columnconfigure(2, weight=1)
+        actions = self.config.get("actions", {})
+        enabled = self.config.get("enabled", {})
+        labels = [
+            ("swipe_up", "Swipe up"),
+            ("swipe_down", "Swipe down"),
+            ("swipe_left", "Swipe left"),
+            ("swipe_right", "Swipe right"),
+        ]
+        self.vars["actions"] = {}
+        self.vars["enabled"] = {}
+        for row, (name, label) in enumerate(labels):
+            self.ttk.Label(f, text=label).grid(row=row, column=0, sticky="w", pady=5)
+            ev = self.tk.BooleanVar(value=bool(enabled.get(name, True)))
+            self.vars["enabled"][name] = ev
+            self.ttk.Checkbutton(f, variable=ev).grid(row=row, column=1, sticky="w")
+            cv = self.tk.StringVar(value=str(actions.get(name, DEFAULT_CONFIG["actions"].get(name, ""))))
+            self.vars["actions"][name] = cv
+            self.ttk.Entry(f, textvariable=cv, width=54).grid(row=row, column=2, sticky="ew", pady=5)
+            self.ttk.Button(f, text="Test", command=lambda n=name: self.test_action(n)).grid(row=row, column=3, padx=6)
+
+        tips = "Örnekler: magic-mouse-ws down | magic-mouse-ws up | magic-mouse-ws overview | xdg-open https://example.com"
+        self.ttk.Label(f, text=tips, wraplength=680).grid(row=5, column=0, columnspan=4, sticky="w", pady=12)
+
+    def _build_service(self):
+        f = self.service
+        for i in range(4):
+            f.columnconfigure(i, weight=1)
+        cmds = [
+            ("Başlat", "systemctl --user start magic-mouse-gestures.service"),
+            ("Durdur", "systemctl --user stop magic-mouse-gestures.service"),
+            ("Restart", "systemctl --user restart magic-mouse-gestures.service"),
+            ("Status", "systemctl --user status magic-mouse-gestures.service --no-pager"),
+            ("GNOME ping", "magic-mouse-ws ping"),
+            ("Cihazları listele", "magic-mouse-gesture-daemon --list-devices"),
+            ("Son loglar", "journalctl --user -u magic-mouse-gestures.service -n 80 --no-pager"),
+            ("Tanı zip oluştur", "magic-mouse-diagnose"),
+        ]
+        for idx, (label, cmd) in enumerate(cmds):
+            self.ttk.Button(f, text=label, command=lambda c=cmd: self.run_show(c)).grid(row=idx // 4, column=idx % 4, sticky="ew", padx=4, pady=4)
+        self.output = self.tk.Text(f, height=22, wrap="word")
+        self.output.grid(row=3, column=0, columnspan=4, sticky="nsew", pady=10)
+        f.rowconfigure(3, weight=1)
+
+    def _collect(self):
+        c = dict(self.config)
+        for key in ["device_name_regex", "log_level"]:
+            c[key] = self.vars[key].get()
+        for key in ["min_fingers", "threshold_x", "threshold_y", "cooldown_ms", "min_duration_ms", "max_duration_ms"]:
+            try:
+                c[key] = int(float(self.vars[key].get()))
+            except ValueError:
+                c[key] = DEFAULT_CONFIG[key]
+        for key in ["diagonal_bias"]:
+            try:
+                c[key] = float(self.vars[key].get())
+            except ValueError:
+                c[key] = DEFAULT_CONFIG[key]
+        for key in ["invert_x", "invert_y", "dry_run"]:
+            c[key] = bool(self.vars[key].get())
+        c["actions"] = {k: v.get() for k, v in self.vars["actions"].items()}
+        c["enabled"] = {k: bool(v.get()) for k, v in self.vars["enabled"].items()}
+        return c
+
+    def save(self):
+        self.config = self._collect()
+        save_config(self.config)
+        self.run_show(f"echo 'Kaydedildi: {CONFIG_PATH}'", timeout=3)
+
+    def save_restart(self):
+        self.save()
+        self.run_show("systemctl --user restart magic-mouse-gestures.service && systemctl --user status magic-mouse-gestures.service --no-pager")
+
+    def test_action(self, name):
+        cmd = self.vars["actions"][name].get()
+        self.run_show(cmd)
+
+    def run_show(self, cmd, timeout=12):
+        rc, out = run_cmd(cmd, timeout=timeout)
+        self.output.delete("1.0", "end")
+        self.output.insert("end", f"$ {cmd}\n# exit={rc}\n\n{out}\n")
+
+
+def launch_gui():
+    try:
+        import tkinter as tk
+    except Exception as exc:
+        print("python3-tk yok. Kur:", file=sys.stderr)
+        print("  sudo apt install -y python3-tk", file=sys.stderr)
+        print(f"Hata: {exc}", file=sys.stderr)
+        return 1
+    try:
+        root = tk.Tk(className="MagicMouseControlPanel")
+        Panel(root)
+        root.mainloop()
+        return 0
+    except tk.TclError as exc:
+        print("Grafik ekrana bağlanamadım.", file=sys.stderr)
+        print(f"DISPLAY={os.environ.get('DISPLAY', 'unset')} WAYLAND_DISPLAY={os.environ.get('WAYLAND_DISPLAY', 'unset')}", file=sys.stderr)
+        print("Paneli masaüstü oturumundaki normal kullanıcıdan çalıştır:", file=sys.stderr)
+        print("  magic-mouse-control-panel", file=sys.stderr)
+        print("SSH/sudo içindeysen GUI açılmaz; CLI için:", file=sys.stderr)
+        print("  magic-mouse-control-panel --print-config", file=sys.stderr)
+        print(f"TclError: {exc}", file=sys.stderr)
+        return 1
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser()
+    p.add_argument("--print-config", action="store_true")
+    p.add_argument("--export-settings", action="store_true")
+    args = p.parse_args(argv)
+    if args.print_config:
+        print(json.dumps(load_config(), indent=2))
+        return 0
+    if args.export_settings:
+        cli_export()
+        return 0
+    return launch_gui()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

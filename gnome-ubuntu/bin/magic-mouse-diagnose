@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+TS="$(date +%Y%m%d-%H%M%S)"
+OUTDIR="/tmp/magic-mouse-diagnose-$TS"
+ZIP="/tmp/magic-mouse-diagnose-$TS.zip"
+mkdir -p "$OUTDIR"
+run() {
+  local name="$1"; shift
+  { echo "$ $*"; "$@"; } >"$OUTDIR/$name.txt" 2>&1 || true
+}
+{
+  echo "date=$(date -Is)"
+  echo "user=${USER:-unset}"
+  echo "uname=$(uname -a)"
+  echo "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unset}"
+  echo "XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-unset}"
+  echo "DISPLAY=${DISPLAY:-unset}"
+  echo "WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset}"
+} > "$OUTDIR/session.txt"
+run os-release bash -lc 'cat /etc/os-release; echo; lsb_release -a 2>/dev/null || true'
+run gnome bash -lc 'gnome-shell --version 2>/dev/null || true; gnome-extensions info magic-mouse-workspaces@horseman.local 2>/dev/null || true'
+run probe magic-mouse-gnome-probe
+run devices magic-mouse-gesture-daemon --list-devices
+run service systemctl --user status magic-mouse-gestures.service --no-pager
+run logs journalctl --user -u magic-mouse-gestures.service -n 250 --no-pager
+if [[ -f "$HOME/.config/magic-mouse/config.json" ]]; then
+  cp "$HOME/.config/magic-mouse/config.json" "$OUTDIR/config.json"
+fi
+( cd /tmp && zip -r "$ZIP" "$(basename "$OUTDIR")" >/dev/null )
+echo "$ZIP"

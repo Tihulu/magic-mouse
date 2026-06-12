@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Magic Mouse Control Panel
+Comment=Configure Magic Mouse gestures for GNOME/Ubuntu
+Exec=magic-mouse-control-panel
+Icon=input-mouse
+Terminal=false
+Categories=Settings;Utility;

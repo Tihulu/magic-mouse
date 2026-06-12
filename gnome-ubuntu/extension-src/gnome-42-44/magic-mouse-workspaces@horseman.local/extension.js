@@ -1,7 +1,6 @@
-'use strict';
-
 const Gio = imports.gi.Gio;
 const Meta = imports.gi.Meta;
+const Main = imports.ui.main;
 
 const BUS_NAME = 'org.magicmouse.Workspaces';
 const OBJECT_PATH = '/org/magicmouse/Workspaces';
@@ -13,6 +12,7 @@ const IFACE_XML = `<node>
     <method name="SwitchTo">
       <arg type="i" name="index" direction="in"/>
     </method>
+    <method name="Overview"/>
     <method name="Ping">
       <arg type="b" name="ok" direction="out"/>
     </method>
@@ -40,7 +40,6 @@ function activateWorkspaceByIndex(indexZeroBased) {
     const maxIndex = Math.max(0, manager.n_workspaces - 1);
     const targetIndex = clamp(indexZeroBased, 0, maxIndex);
     const workspace = manager.get_workspace_by_index(targetIndex);
-
     if (workspace)
         workspace.activate(global.get_current_time());
 }
@@ -50,12 +49,11 @@ function switchRelative(direction) {
     const activeIndex = manager.get_active_workspace_index();
     const normalized = String(direction).toLowerCase();
 
-    if (['next', 'down', 'right'].includes(normalized)) {
+    if (['next', 'down', 'right'].indexOf(normalized) >= 0) {
         activateWorkspaceByIndex(activeIndex + 1);
         return;
     }
-
-    if (['prev', 'previous', 'up', 'left'].includes(normalized)) {
+    if (['prev', 'previous', 'up', 'left'].indexOf(normalized) >= 0) {
         activateWorkspaceByIndex(activeIndex - 1);
         return;
     }
@@ -70,7 +68,8 @@ function switchRelative(direction) {
     if (motionMap[normalized] !== undefined) {
         const active = manager.get_active_workspace();
         const target = active.get_neighbor(motionMap[normalized]);
-        target.activate(global.get_current_time());
+        if (target)
+            target.activate(global.get_current_time());
     }
 }
 
@@ -88,32 +87,21 @@ class MagicMouseWorkspacesExtension {
     }
 
     disable() {
-        if (this._busNameId) {
-            Gio.bus_unown_name(this._busNameId);
-            this._busNameId = 0;
-        }
-
         if (this._dbusObject) {
             this._dbusObject.unexport();
             this._dbusObject = null;
         }
+        if (this._busNameId) {
+            Gio.bus_unown_name(this._busNameId);
+            this._busNameId = 0;
+        }
     }
 
-    Switch(direction) {
-        switchRelative(direction);
-    }
-
-    SwitchTo(index) {
-        activateWorkspaceByIndex(index - 1);
-    }
-
-    Ping() {
-        return true;
-    }
-
-    Status() {
-        return workspaceStatus('gnome-extension');
-    }
+    Switch(direction) { switchRelative(direction); }
+    SwitchTo(index) { activateWorkspaceByIndex(index - 1); }
+    Overview() { Main.overview.toggle(); }
+    Ping() { return true; }
+    Status() { return workspaceStatus('gnome-extension'); }
 }
 
 function init() {

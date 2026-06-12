@@ -1,0 +1,5 @@
+# Let the active logged-in desktop user read Apple Magic Mouse / Magic Trackpad
+# evdev and hidraw nodes. Required for the user-level gesture daemon.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="*Magic Mouse*", TAG+="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="*Magic Trackpad*", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="05ac", TAG+="uaccess", MODE="0660"

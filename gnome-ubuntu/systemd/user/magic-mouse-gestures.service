@@ -1,0 +1,14 @@
+[Unit]
+Description=Magic Mouse gesture daemon for GNOME/Ubuntu
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/magic-mouse-gesture-daemon
+Restart=on-failure
+RestartSec=2
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=default.target

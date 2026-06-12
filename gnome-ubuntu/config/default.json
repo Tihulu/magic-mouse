@@ -1,0 +1,27 @@
+{
+  "backend": "evdev",
+  "device_name_regex": "Magic Mouse|Magic Trackpad",
+  "min_fingers": 2,
+  "threshold_x": 700,
+  "threshold_y": 600,
+  "diagonal_bias": 1.25,
+  "min_duration_ms": 60,
+  "max_duration_ms": 1500,
+  "cooldown_ms": 550,
+  "invert_x": false,
+  "invert_y": false,
+  "dry_run": false,
+  "log_level": "info",
+  "actions": {
+    "swipe_up": "magic-mouse-ws up",
+    "swipe_down": "magic-mouse-ws down",
+    "swipe_left": "magic-mouse-ws left",
+    "swipe_right": "magic-mouse-ws right"
+  },
+  "enabled": {
+    "swipe_up": true,
+    "swipe_down": true,
+    "swipe_left": true,
+    "swipe_right": true
+  }
+}

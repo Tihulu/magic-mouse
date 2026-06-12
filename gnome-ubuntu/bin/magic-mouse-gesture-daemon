@@ -1,0 +1,441 @@
+#!/usr/bin/env python3
+"""Magic Mouse / Magic Trackpad gesture daemon for GNOME/Ubuntu.
+
+Reads Linux evdev multitouch events from Apple Magic Mouse/Trackpad devices and
+runs configured commands for two-finger swipe gestures. It does not grab the
+input device, so normal pointer movement and scrolling continue to work.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import select
+import shlex
+import signal
+import subprocess
+import sys
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Tuple
+
+APP_DIR = Path.home() / ".config" / "magic-mouse"
+CONFIG_PATH = APP_DIR / "config.json"
+DEFAULT_CONFIG = {
+    "backend": "evdev",
+    "device_name_regex": "Magic Mouse|Magic Trackpad",
+    "min_fingers": 2,
+    "threshold_x": 700,
+    "threshold_y": 600,
+    "diagonal_bias": 1.25,
+    "min_duration_ms": 60,
+    "max_duration_ms": 1500,
+    "cooldown_ms": 550,
+    "invert_x": False,
+    "invert_y": False,
+    "dry_run": False,
+    "log_level": "info",
+    "actions": {
+        "swipe_up": "magic-mouse-ws up",
+        "swipe_down": "magic-mouse-ws down",
+        "swipe_left": "magic-mouse-ws left",
+        "swipe_right": "magic-mouse-ws right",
+    },
+    "enabled": {
+        "swipe_up": True,
+        "swipe_down": True,
+        "swipe_left": True,
+        "swipe_right": True,
+    },
+}
+
+
+def deep_merge(base: dict, override: dict) -> dict:
+    out = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = deep_merge(out[key], value)
+        else:
+            out[key] = value
+    return out
+
+
+def ensure_config(path: Path = CONFIG_PATH) -> dict:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        path.write_text(json.dumps(DEFAULT_CONFIG, indent=2) + "\n", encoding="utf-8")
+        return dict(DEFAULT_CONFIG)
+    try:
+        user_config = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise SystemExit(f"Could not read config {path}: {exc}") from exc
+    merged = deep_merge(DEFAULT_CONFIG, user_config)
+    # Backfill new defaults without destroying user values.
+    if merged != user_config:
+        path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+    return merged
+
+
+class Log:
+    LEVELS = {"debug": 10, "info": 20, "warning": 30, "error": 40}
+
+    def __init__(self, level: str = "info") -> None:
+        self.level = self.LEVELS.get(str(level).lower(), 20)
+
+    def _emit(self, level: str, msg: str) -> None:
+        if self.LEVELS[level] >= self.level:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {level.upper()}: {msg}", flush=True)
+
+    def debug(self, msg: str) -> None: self._emit("debug", msg)
+    def info(self, msg: str) -> None: self._emit("info", msg)
+    def warning(self, msg: str) -> None: self._emit("warning", msg)
+    def error(self, msg: str) -> None: self._emit("error", msg)
+
+
+def load_evdev():
+    try:
+        import evdev  # type: ignore
+        from evdev import ecodes  # type: ignore
+    except Exception as exc:
+        raise SystemExit(
+            "python3-evdev is missing. Install it with:\n"
+            "  sudo apt install -y python3-evdev\n"
+            f"Original import error: {exc}"
+        ) from exc
+    return evdev, ecodes
+
+
+def event_code_name(ecodes, etype: int, code: int) -> str:
+    try:
+        value = ecodes.bytype.get(etype, {}).get(code, str(code))
+        if isinstance(value, list):
+            return value[0]
+        return str(value)
+    except Exception:
+        return str(code)
+
+
+@dataclass
+class Slot:
+    tracking_id: int = -1
+    x: Optional[int] = None
+    y: Optional[int] = None
+
+
+@dataclass
+class Gesture:
+    start_time: float
+    start_x: float
+    start_y: float
+    last_x: float
+    last_y: float
+    max_touches: int
+    triggered: bool = False
+
+
+class DeviceState:
+    def __init__(self, device, config: dict, log: Log) -> None:
+        self.device = device
+        self.config = config
+        self.log = log
+        self.current_slot = 0
+        self.slots: Dict[int, Slot] = {}
+        self.gesture: Optional[Gesture] = None
+        self.last_trigger = 0.0
+        self.last_seen = time.monotonic()
+        self.name = getattr(device, "name", "unknown")
+
+    def handle(self, event, ecodes) -> None:
+        if event.type == ecodes.EV_ABS:
+            self._handle_abs(event, ecodes)
+        elif event.type == ecodes.EV_SYN and event.code == ecodes.SYN_REPORT:
+            self._syn_report()
+
+    def _slot(self) -> Slot:
+        return self.slots.setdefault(self.current_slot, Slot())
+
+    def _handle_abs(self, event, ecodes) -> None:
+        if event.code == ecodes.ABS_MT_SLOT:
+            self.current_slot = int(event.value)
+            self._slot()
+        elif event.code == ecodes.ABS_MT_TRACKING_ID:
+            slot = self._slot()
+            slot.tracking_id = int(event.value)
+            if event.value < 0:
+                slot.x = None
+                slot.y = None
+        elif event.code == ecodes.ABS_MT_POSITION_X:
+            self._slot().x = int(event.value)
+        elif event.code == ecodes.ABS_MT_POSITION_Y:
+            self._slot().y = int(event.value)
+
+    def _active_touches(self) -> List[Slot]:
+        return [
+            slot for slot in self.slots.values()
+            if slot.tracking_id >= 0 and slot.x is not None and slot.y is not None
+        ]
+
+    def _syn_report(self) -> None:
+        now = time.monotonic()
+        touches = self._active_touches()
+        min_fingers = int(self.config.get("min_fingers", 2))
+
+        if len(touches) < min_fingers:
+            if self.gesture is not None:
+                self._finish_gesture(now, release=True)
+            self.gesture = None
+            return
+
+        cx = sum(slot.x or 0 for slot in touches) / len(touches)
+        cy = sum(slot.y or 0 for slot in touches) / len(touches)
+        self.last_seen = now
+
+        if self.gesture is None:
+            self.gesture = Gesture(now, cx, cy, cx, cy, len(touches))
+            self.log.debug(f"gesture start on {self.name}: touches={len(touches)} centroid=({cx:.1f},{cy:.1f})")
+            return
+
+        self.gesture.last_x = cx
+        self.gesture.last_y = cy
+        self.gesture.max_touches = max(self.gesture.max_touches, len(touches))
+        self._finish_gesture(now, release=False)
+
+    def _finish_gesture(self, now: float, release: bool) -> None:
+        g = self.gesture
+        if g is None or g.triggered:
+            return
+
+        age_ms = (now - g.start_time) * 1000.0
+        if age_ms < float(self.config.get("min_duration_ms", 60)):
+            return
+        if age_ms > float(self.config.get("max_duration_ms", 1500)):
+            self.log.debug("gesture expired")
+            g.triggered = True
+            return
+
+        raw_dx = g.last_x - g.start_x
+        raw_dy = g.last_y - g.start_y
+        dx = -raw_dx if bool(self.config.get("invert_x", False)) else raw_dx
+        dy = -raw_dy if bool(self.config.get("invert_y", False)) else raw_dy
+        threshold_x = float(self.config.get("threshold_x", 700))
+        threshold_y = float(self.config.get("threshold_y", 600))
+        bias = float(self.config.get("diagonal_bias", 1.25))
+
+        action_name: Optional[str] = None
+        if abs(dx) >= threshold_x and abs(dx) >= abs(dy) * bias:
+            action_name = "swipe_right" if dx > 0 else "swipe_left"
+        elif abs(dy) >= threshold_y and abs(dy) >= abs(dx) * bias:
+            action_name = "swipe_down" if dy > 0 else "swipe_up"
+
+        if action_name is None:
+            if release:
+                self.log.debug(f"gesture ignored: dx={dx:.1f} dy={dy:.1f} age_ms={age_ms:.0f}")
+            return
+
+        cooldown = float(self.config.get("cooldown_ms", 550)) / 1000.0
+        if now - self.last_trigger < cooldown:
+            self.log.debug("gesture suppressed by cooldown")
+            g.triggered = True
+            return
+
+        g.triggered = True
+        self.last_trigger = now
+        self._run_action(action_name, dx, dy, age_ms)
+
+    def _run_action(self, action_name: str, dx: float, dy: float, age_ms: float) -> None:
+        enabled = self.config.get("enabled", {}).get(action_name, True)
+        command = self.config.get("actions", {}).get(action_name, "")
+        if not enabled or not command:
+            self.log.info(f"{action_name} detected but disabled")
+            return
+
+        self.log.info(f"{action_name}: dx={dx:.1f} dy={dy:.1f} age_ms={age_ms:.0f} command={command!r}")
+        if bool(self.config.get("dry_run", False)):
+            return
+
+        env = os.environ.copy()
+        local_bin = str(Path.home() / ".local" / "bin")
+        env["PATH"] = local_bin + os.pathsep + env.get("PATH", "")
+        try:
+            subprocess.Popen(command, shell=True, env=env, start_new_session=True)
+        except Exception as exc:
+            self.log.error(f"failed to run action {action_name}: {exc}")
+
+
+def device_matches(device, name_re: re.Pattern, ecodes) -> bool:
+    name = getattr(device, "name", "") or ""
+    if name_re.search(name):
+        return True
+    try:
+        caps = device.capabilities(absinfo=False)
+        abs_codes = set(caps.get(ecodes.EV_ABS, []))
+        return (
+            ecodes.ABS_MT_POSITION_X in abs_codes and
+            ecodes.ABS_MT_POSITION_Y in abs_codes and
+            name_re.search(name)
+        )
+    except Exception:
+        return False
+
+
+def describe_devices(config: dict) -> int:
+    evdev, ecodes = load_evdev()
+    name_re = re.compile(str(config.get("device_name_regex", DEFAULT_CONFIG["device_name_regex"])), re.I)
+    found = 0
+    for path in evdev.list_devices():
+        try:
+            dev = evdev.InputDevice(path)
+            caps = dev.capabilities(absinfo=False)
+            abs_names = [event_code_name(ecodes, ecodes.EV_ABS, c) for c in caps.get(ecodes.EV_ABS, [])]
+            key_names = [event_code_name(ecodes, ecodes.EV_KEY, c) for c in caps.get(ecodes.EV_KEY, [])]
+            match = device_matches(dev, name_re, ecodes)
+            if match or name_re.search(dev.name or ""):
+                found += 1
+                print(f"{path}: {dev.name}")
+                print(f"  phys={getattr(dev, 'phys', '')}")
+                print(f"  uniq={getattr(dev, 'uniq', '')}")
+                print(f"  match={match}")
+                print(f"  abs={','.join(abs_names[:40])}")
+                print(f"  keys={','.join(key_names[:40])}")
+        except PermissionError as exc:
+            print(f"{path}: permission denied ({exc})")
+        except Exception as exc:
+            print(f"{path}: error ({exc})")
+    if found == 0:
+        print("No Magic Mouse/Trackpad evdev device matched. Check Bluetooth pairing and udev permissions.")
+    return 0 if found else 1
+
+
+def open_matching_devices(config: dict, log: Log):
+    evdev, ecodes = load_evdev()
+    name_re = re.compile(str(config.get("device_name_regex", DEFAULT_CONFIG["device_name_regex"])), re.I)
+    states: Dict[int, DeviceState] = {}
+    for path in evdev.list_devices():
+        try:
+            dev = evdev.InputDevice(path)
+            if device_matches(dev, name_re, ecodes):
+                dev.set_nonblocking(True)
+                states[dev.fd] = DeviceState(dev, config, log)
+                log.info(f"watching {path}: {dev.name}")
+        except PermissionError:
+            # Keep this as warning because it is the most common fresh-install issue.
+            log.warning(f"permission denied reading {path}; install udev rule or relogin")
+        except OSError:
+            pass
+        except Exception as exc:
+            log.debug(f"skipping {path}: {exc}")
+    return states, ecodes
+
+
+def run_daemon(config: dict) -> int:
+    log = Log(config.get("log_level", "info"))
+    stop = False
+
+    def _stop(signum, frame):
+        nonlocal stop
+        stop = True
+        log.info(f"signal {signum}; stopping")
+
+    signal.signal(signal.SIGTERM, _stop)
+    signal.signal(signal.SIGINT, _stop)
+
+    states: Dict[int, DeviceState] = {}
+    ecodes = None
+    last_scan = 0.0
+    log.info("Magic Mouse gesture daemon starting")
+
+    while not stop:
+        now = time.monotonic()
+        if not states or now - last_scan > 5.0:
+            try:
+                new_states, ecodes = open_matching_devices(config, log)
+                # Preserve already-open states, add new ones.
+                existing_names = {(s.device.path, s.name) for s in states.values()}
+                for fd, state in new_states.items():
+                    key = (state.device.path, state.name)
+                    if key not in existing_names:
+                        states[fd] = state
+                last_scan = now
+            except SystemExit:
+                raise
+            except Exception as exc:
+                log.error(f"device scan failed: {exc}")
+                time.sleep(2)
+
+        if not states:
+            log.warning("no readable Magic Mouse/Trackpad device yet; retrying")
+            time.sleep(3)
+            continue
+
+        try:
+            readable, _, _ = select.select(list(states.keys()), [], [], 1.0)
+        except (OSError, ValueError):
+            states = {}
+            continue
+
+        for fd in readable:
+            state = states.get(fd)
+            if state is None:
+                continue
+            try:
+                for event in state.device.read():
+                    state.handle(event, ecodes)
+            except BlockingIOError:
+                continue
+            except OSError as exc:
+                log.warning(f"device disconnected: {state.name}: {exc}")
+                try:
+                    state.device.close()
+                except Exception:
+                    pass
+                states.pop(fd, None)
+            except Exception as exc:
+                log.error(f"error reading {state.name}: {exc}")
+    return 0
+
+
+def monitor_raw(config: dict) -> int:
+    log = Log("debug")
+    states, ecodes = open_matching_devices(config, log)
+    if not states:
+        print("No readable Magic Mouse/Trackpad devices.", file=sys.stderr)
+        return 1
+    print("Raw monitor: swipe/touch the Magic Mouse, Ctrl+C to stop.")
+    try:
+        while True:
+            readable, _, _ = select.select(list(states.keys()), [], [], 1.0)
+            for fd in readable:
+                state = states[fd]
+                for event in state.device.read():
+                    name = event_code_name(ecodes, event.type, event.code)
+                    print(f"{state.name}: type={event.type} code={name} value={event.value}")
+                    state.handle(event, ecodes)
+    except KeyboardInterrupt:
+        return 0
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description="Magic Mouse gesture daemon for GNOME/Ubuntu")
+    parser.add_argument("--config", default=str(CONFIG_PATH), help="config JSON path")
+    parser.add_argument("--print-config", action="store_true")
+    parser.add_argument("--list-devices", action="store_true")
+    parser.add_argument("--monitor-raw", action="store_true", help="print raw matching evdev events and detected gestures")
+    args = parser.parse_args(argv)
+
+    config_path = Path(args.config).expanduser()
+    config = ensure_config(config_path)
+
+    if args.print_config:
+        print(json.dumps(config, indent=2))
+        return 0
+    if args.list_devices:
+        return describe_devices(config)
+    if args.monitor_raw:
+        return monitor_raw(config)
+    return run_daemon(config)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -4,13 +4,14 @@ set -euo pipefail
 usage() {
   cat <<'HELP'
 Usage:
-  magic-mouse-ws up|down|left|right|next|prev
-  magic-mouse-ws 1|2|3|...|12
+  magic-mouse-ws up|down|left|right|next|prev|previous|overview
+  magic-mouse-ws 1|2|3|...|20
   magic-mouse-ws ping|status
 
 GNOME/Ubuntu backend for Magic Mouse workspace gestures.
-Preferred backend: GNOME Shell extension exposing org.magicmouse.Workspaces over DBus.
-Fallback backends: org.gnome.Shell.Eval, then X11 xdotool for X11 sessions.
+Preferred path: small GNOME Shell extension exposes org.magicmouse.Workspaces.
+Fallback path: org.gnome.Shell.Eval, which may be disabled on modern GNOME.
+X11 fallback: xdotool Ctrl+Alt+Up/Down/Left/Right when available.
 HELP
 }
 
@@ -26,38 +27,17 @@ normalize_direction() {
   esac
 }
 
-call_extension_switch() {
-  local dir="$1"
+call_extension() {
+  local method="$1"; shift
   need_gdbus || return $?
   gdbus call --session \
     --dest org.magicmouse.Workspaces \
     --object-path /org/magicmouse/Workspaces \
-    --method org.magicmouse.Workspaces.Switch "$dir" >/dev/null
+    --method "org.magicmouse.Workspaces.${method}" "$@"
 }
 
-call_extension_switch_to() {
-  local index="$1"
-  need_gdbus || return $?
-  gdbus call --session \
-    --dest org.magicmouse.Workspaces \
-    --object-path /org/magicmouse/Workspaces \
-    --method org.magicmouse.Workspaces.SwitchTo "${index}" >/dev/null
-}
-
-call_extension_ping() {
-  need_gdbus || return $?
-  gdbus call --session \
-    --dest org.magicmouse.Workspaces \
-    --object-path /org/magicmouse/Workspaces \
-    --method org.magicmouse.Workspaces.Ping 2>/dev/null | grep -Eq '^\(true,?\)$|^\(true,.*\)'
-}
-
-call_extension_status() {
-  need_gdbus || return $?
-  gdbus call --session \
-    --dest org.magicmouse.Workspaces \
-    --object-path /org/magicmouse/Workspaces \
-    --method org.magicmouse.Workspaces.Status 2>/dev/null || return $?
+call_extension_void() {
+  call_extension "$@" >/dev/null
 }
 
 call_eval_relative() {
@@ -73,7 +53,7 @@ call_eval_relative() {
     --dest org.gnome.Shell \
     --object-path /org/gnome/Shell \
     --method org.gnome.Shell.Eval "$js" 2>/dev/null || true)
-  [[ "$out" == "(true,"* || "$out" == "(true,"* || "$out" == "(true, '')"* ]]
+  [[ "$out" == "(true,"* ]]
 }
 
 call_eval_index() {
@@ -85,7 +65,17 @@ call_eval_index() {
     --dest org.gnome.Shell \
     --object-path /org/gnome/Shell \
     --method org.gnome.Shell.Eval "$js" 2>/dev/null || true)
-  [[ "$out" == "(true,"* || "$out" == "(true,"* || "$out" == "(true, '')"* ]]
+  [[ "$out" == "(true,"* ]]
+}
+
+call_eval_overview() {
+  local out
+  need_gdbus || return $?
+  out=$(gdbus call --session \
+    --dest org.gnome.Shell \
+    --object-path /org/gnome/Shell \
+    --method org.gnome.Shell.Eval "Main.overview.toggle(); true;" 2>/dev/null || true)
+  [[ "$out" == "(true,"* ]]
 }
 
 call_eval_status() {
@@ -104,8 +94,11 @@ call_x11_relative() {
   local dir="$1" key
   has xdotool || return 2
   case "$dir" in
-    down|right|next) key="ctrl+alt+Down" ;;
-    up|left|prev|previous) key="ctrl+alt+Up" ;;
+    down|next) key="ctrl+alt+Down" ;;
+    up|prev|previous) key="ctrl+alt+Up" ;;
+    right) key="ctrl+alt+Right" ;;
+    left) key="ctrl+alt+Left" ;;
+    overview) key="Super_L" ;;
     *) return 2 ;;
   esac
   xdotool key "$key"
@@ -115,9 +108,12 @@ arg="${1:-}"
 [[ -n "$arg" ]] || { usage; exit 2; }
 
 case "$arg" in
-  -h|--help) usage; exit 0 ;;
+  -h|--help)
+    usage
+    exit 0
+    ;;
   ping)
-    if call_extension_ping; then
+    if call_extension Ping 2>/dev/null | grep -Eq '^\(true,?\)$|^\(true,.*\)'; then
       echo "ok: gnome-extension"
       exit 0
     fi
@@ -125,24 +121,31 @@ case "$arg" in
       echo "ok: gnome-shell-eval"
       exit 0
     fi
-    echo "not-ready: enable the GNOME extension, then log out/in on Wayland" >&2
+    echo "not-ready: enable the GNOME extension or allow Shell Eval" >&2
     exit 1
     ;;
   status)
-    if call_extension_status; then exit 0; fi
+    if call_extension Status 2>/dev/null; then exit 0; fi
     if call_eval_status; then exit 0; fi
     echo "not-ready: no GNOME workspace backend responded" >&2
     exit 1
     ;;
+  overview)
+    if call_extension_void Overview 2>/dev/null; then exit 0; fi
+    if call_eval_overview; then exit 0; fi
+    if [[ "${XDG_SESSION_TYPE:-}" == "x11" ]] && call_x11_relative overview; then exit 0; fi
+    echo "failed: cannot toggle overview. Run: magic-mouse-gnome-probe" >&2
+    exit 1
+    ;;
   [0-9]|[1-9][0-9])
-    if call_extension_switch_to "$arg" 2>/dev/null; then exit 0; fi
+    if call_extension_void SwitchTo "${arg}" 2>/dev/null; then exit 0; fi
     if call_eval_index "$arg"; then exit 0; fi
-    echo "failed: cannot switch to workspace $arg; run magic-mouse-gnome-probe" >&2
+    echo "failed: cannot switch to workspace $arg; GNOME extension/Eval unavailable" >&2
     exit 1
     ;;
   *)
     normalized=$(normalize_direction "$arg") || { echo "unknown direction: $arg" >&2; usage; exit 2; }
-    if call_extension_switch "$normalized" 2>/dev/null; then exit 0; fi
+    if call_extension_void Switch "$normalized" 2>/dev/null; then exit 0; fi
     if call_eval_relative "$normalized"; then exit 0; fi
     if [[ "${XDG_SESSION_TYPE:-}" == "x11" ]] && call_x11_relative "$normalized"; then exit 0; fi
     echo "failed: cannot switch workspace '$arg'. Run: magic-mouse-gnome-probe" >&2

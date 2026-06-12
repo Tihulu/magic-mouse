@@ -1,72 +1,120 @@
-# Magic Mouse GNOME/Ubuntu workspace backend 0.1.2
+# Magic Mouse GNOME package 0.2.0
 
-This package is a GNOME/Ubuntu backend for Magic Mouse workspace gestures. It replaces COSMIC-specific workspace switching with `magic-mouse-ws`.
+Full Magic Mouse gesture package for Ubuntu GNOME, Pop!_OS GNOME, and other GNOME Shell desktops.
 
-## What changed in 0.1.2
+This is no longer only a workspace bridge. It includes:
 
-- Adds two GNOME Shell extension variants:
-  - GNOME 42-44 legacy `imports.*` extension for Ubuntu 22.04-era desktops.
-  - GNOME 45-50 ESM extension for Ubuntu 24.04 through Ubuntu 26.04-era desktops.
-- `install.sh` detects the installed GNOME Shell major version and installs the correct variant.
-- Adds `magic-mouse-ws status` for active workspace/count debugging.
-- Adds `magic-mouse-gnome-integrate install-cosmic-ws-shim` for old daemons that still call `cosmic-ws`.
-- Improves `magic-mouse-gnome-probe` output.
+- `magic-mouse-gesture-daemon` evdev gesture reader
+- `magic-mouse-control-panel` Tk settings panel
+- `magic-mouse-ws` GNOME workspace helper
+- GNOME Shell extension DBus bridge
+- user `systemd` service
+- udev permission rule
+- diagnostics and service helpers
 
-## Install
+## Supported GNOME Shell ranges
+
+The installer chooses the extension variant automatically:
+
+| GNOME Shell | Extension variant |
+|---|---|
+| 3.36, 3.38, 40, 41, 42, 43, 44 | legacy `imports.*` extension |
+| 45, 46, 47, 48, 49, 50, 51+ | modern ESM extension |
+
+The installer patches `metadata.json` with the exact detected Shell major version so future GNOME versions are not blocked only by metadata.
+
+## Quick install from GitHub
 
 ```bash
-unzip magic-mouse-gnome-ubuntu-0.1.2.zip
-cd magic-mouse-gnome-ubuntu-0.1.2
-./install.sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/gnome-ubuntu/quick-install.sh)"
 ```
 
-On GNOME Wayland, log out and log back in after installing/enabling the extension.
+Alternative with `wget`:
+
+```bash
+bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/gnome-ubuntu/quick-install.sh)"
+```
+
+## Manual install
+
+```bash
+git clone https://github.com/Tihulu/magic-mouse.git
+cd magic-mouse/gnome-ubuntu
+./install.sh --install-deps --install-udev
+```
+
+Log out and log back in after installing, especially on GNOME Wayland or after udev rule changes.
 
 ## Test
 
 ```bash
 magic-mouse-gnome-probe
+magic-mouse-ws ping
 magic-mouse-ws status
 magic-mouse-ws down
 sleep 0.5
 magic-mouse-ws up
+magic-mouse-gesture-daemon --list-devices
 ```
 
-Expected behavior:
+Expected default behavior:
 
-- two-finger down -> next workspace
-- two-finger up -> previous workspace
+| Gesture | Action |
+|---|---|
+| Two-finger swipe down | Next workspace |
+| Two-finger swipe up | Previous workspace |
+| Two-finger swipe left | Previous workspace |
+| Two-finger swipe right | Next workspace |
 
-## Hook into the existing daemon
-
-If your existing detector can call commands directly, use:
+## Control panel
 
 ```bash
-magic-mouse-ws down
-magic-mouse-ws up
+magic-mouse-control-panel
 ```
 
-If the old detector is hardcoded to call `cosmic-ws`, install the compatibility shim:
+Use the panel to tune thresholds, invert directions, enable or disable gestures, and restart the service.
+
+Do not run the panel with `sudo`; it needs the logged-in desktop display session.
+
+## Service and logs
+
+```bash
+magic-mouse-service status
+magic-mouse-service logs 200
+magic-mouse-service monitor
+```
+
+## Compatibility with old COSMIC-oriented configs
+
+If an old daemon or config still calls `cosmic-ws`, install the shim:
 
 ```bash
 magic-mouse-gnome-integrate install-cosmic-ws-shim
+systemctl --user restart magic-mouse-gestures.service
 ```
 
-That creates `~/.local/bin/cosmic-ws` which delegates to `~/.local/bin/magic-mouse-ws`.
-
-## Debug info to send back
+Or rerun the installer with:
 
 ```bash
-magic-mouse-gnome-probe
-journalctl --user -u magic-mouse-gestures.service -n 80 --no-pager
+./install.sh --cosmic-compat
 ```
+
+## Uninstall
+
+```bash
+cd magic-mouse/gnome-ubuntu
+./uninstall.sh
+```
+
+Then log out and back in to fully unload the GNOME Shell extension on Wayland.
 
 ## Notes
 
 GNOME Wayland normally does not accept old X11 synthetic-input approaches reliably, so the primary path is a tiny GNOME Shell extension that exports a private DBus API:
 
 - `Switch("up"|"down"|"left"|"right"|"next"|"prev")`
-- `SwitchTo(1..12)`
+- `SwitchTo(1..20)`
+- `Overview()`
 - `Ping()`
 - `Status()`
 

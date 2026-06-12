@@ -1,5 +1,6 @@
 import Gio from 'gi://Gio';
 import Meta from 'gi://Meta';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const BUS_NAME = 'org.magicmouse.Workspaces';
@@ -12,6 +13,7 @@ const IFACE_XML = `<node>
     <method name="SwitchTo">
       <arg type="i" name="index" direction="in"/>
     </method>
+    <method name="Overview"/>
     <method name="Ping">
       <arg type="b" name="ok" direction="out"/>
     </method>
@@ -39,7 +41,6 @@ function activateWorkspaceByIndex(indexZeroBased) {
     const maxIndex = Math.max(0, manager.n_workspaces - 1);
     const targetIndex = clamp(indexZeroBased, 0, maxIndex);
     const workspace = manager.get_workspace_by_index(targetIndex);
-
     if (workspace)
         workspace.activate(global.get_current_time());
 }
@@ -49,11 +50,12 @@ function switchRelative(direction) {
     const activeIndex = manager.get_active_workspace_index();
     const normalized = String(direction).toLowerCase();
 
+    // Magic Mouse vertical gestures: down means next workspace, up means previous.
+    // left/right are accepted too for GNOME's horizontal workspace mental model.
     if (['next', 'down', 'right'].includes(normalized)) {
         activateWorkspaceByIndex(activeIndex + 1);
         return;
     }
-
     if (['prev', 'previous', 'up', 'left'].includes(normalized)) {
         activateWorkspaceByIndex(activeIndex - 1);
         return;
@@ -69,7 +71,8 @@ function switchRelative(direction) {
     if (motionMap[normalized] !== undefined) {
         const active = manager.get_active_workspace();
         const target = active.get_neighbor(motionMap[normalized]);
-        target.activate(global.get_current_time());
+        if (target)
+            target.activate(global.get_current_time());
     }
 }
 
@@ -87,30 +90,28 @@ export default class MagicMouseWorkspacesExtension extends Extension {
     }
 
     disable() {
-        if (this._busNameId) {
-            Gio.bus_unown_name(this._busNameId);
-            this._busNameId = 0;
-        }
-
         if (this._dbusObject) {
             this._dbusObject.unexport();
             this._dbusObject = null;
         }
+        if (this._busNameId) {
+            Gio.bus_unown_name(this._busNameId);
+            this._busNameId = 0;
+        }
     }
 
-    Switch(direction) {
-        switchRelative(direction);
-    }
+    Switch(direction) { switchRelative(direction); }
 
     SwitchTo(index) {
+        // DBus API is 1-based because humans say "workspace 1".
         activateWorkspaceByIndex(index - 1);
     }
 
-    Ping() {
-        return true;
+    Overview() {
+        Main.overview.toggle();
     }
 
-    Status() {
-        return workspaceStatus('gnome-extension');
-    }
+    Ping() { return true; }
+
+    Status() { return workspaceStatus('gnome-extension'); }
 }

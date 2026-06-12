@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cmd="${1:-status}"
+case "$cmd" in
+  start|stop|restart|enable|disable)
+    systemctl --user "$cmd" magic-mouse-gestures.service
+    ;;
+  status)
+    systemctl --user status magic-mouse-gestures.service --no-pager
+    ;;
+  logs|log)
+    journalctl --user -u magic-mouse-gestures.service -n "${2:-120}" --no-pager
+    ;;
+  devices)
+    magic-mouse-gesture-daemon --list-devices
+    ;;
+  monitor)
+    magic-mouse-gesture-daemon --monitor-raw
+    ;;
+  install-udev)
+    rule="$HOME/.config/magic-mouse/99-magic-mouse-gestures.rules"
+    if [[ ! -f "$rule" ]]; then
+      echo "udev rule not found at $rule; run ./install.sh from the package first, or use ./install.sh --install-udev" >&2
+      exit 1
+    fi
+    sudo install -m 0644 "$rule" /etc/udev/rules.d/99-magic-mouse-gestures.rules
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+    echo "Installed udev rule. Disconnect/reconnect Magic Mouse or log out/in."
+    ;;
+  *)
+    cat <<HELP
+Usage: magic-mouse-service start|stop|restart|enable|disable|status|logs [N]|devices|monitor
+HELP
+    exit 2
+    ;;
+esac
