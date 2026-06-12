@@ -1,5 +1,14 @@
 # Releases
 
+## gnome-ubuntu v0.2.1
+
+- Full GNOME package for Ubuntu GNOME, Pop!_OS GNOME, and other GNOME Shell desktops.
+- Includes gesture daemon, Tk control panel, GNOME Shell workspace bridge, user systemd service, udev permission rule, and diagnostics.
+- Reworked the GNOME control panel UI to match the COSMIC panel more closely.
+- Converted the remaining Turkish UI text to English.
+- Added quick direction buttons for normal/inverted workspace direction and normal/inverted horizontal direction.
+- Added physical axis inversion buttons for X, Y, both axes, and normal axes.
+
 ## cosmic-wayland v1.4.3 stable
 
 - Stable Magic Mouse setup for Pop!_OS / COSMIC Wayland.
