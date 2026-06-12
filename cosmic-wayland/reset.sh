@@ -2,13 +2,35 @@
 set -euo pipefail
 
 VERSION="1.4.3"
-say() { printf '\033[1;35m[uninstall v%s]\033[0m %s\n' "$VERSION" "$*"; }
+TS="$(date +%Y%m%d-%H%M%S)"
+BACKUP_ROOT="$HOME/Documents/magicmouse-backups"
+BACKUP="$BACKUP_ROOT/magicmouse-backup-$TS"
 
-say "Stopping the magic-mouse-gestures service..."
+say() { printf '\033[1;34m[reset v%s]\033[0m %s\n' "$VERSION" "$*"; }
+warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*"; }
+
+DISPLAY_BACKUP_ROOT="~/Documents/magicmouse-backups"
+DISPLAY_BACKUP="$DISPLAY_BACKUP_ROOT/magicmouse-backup-$TS"
+say "Backup root: $DISPLAY_BACKUP_ROOT"
+say "Backup directory: $DISPLAY_BACKUP"
+mkdir -p "$BACKUP"
+
+say "Stopping the magic-mouse-gestures user service..."
 systemctl --user stop magic-mouse-gestures 2>/dev/null || true
 systemctl --user disable magic-mouse-gestures 2>/dev/null || true
 
-say "Removing the helper installed by this package..."
+say "Backing up existing files..."
+cp -a "$HOME/.config/magic-mouse-gestures" "$BACKUP/" 2>/dev/null || true
+cp -a "$HOME/.config/systemd/user/magic-mouse-gestures.service" "$BACKUP/" 2>/dev/null || true
+cp -a "$HOME/.local/share/magic-mouse-linux-gestures" "$BACKUP/" 2>/dev/null || true
+cp -a "$HOME/.local/bin/cosmic-ws" "$BACKUP/" 2>/dev/null || true
+cp -a /etc/udev/rules.d/99-magic-mouse-gestures-local.rules "$BACKUP/" 2>/dev/null || true
+cp -a "$HOME/.cargo/bin/cos-cli" "$BACKUP/" 2>/dev/null || true
+
+say "Cleaning old Magic Mouse user installations..."
+rm -rf "$HOME/.config/magic-mouse-gestures"
+rm -rf "$HOME/.local/share/magic-mouse-linux-gestures"
+rm -f "$HOME/.config/systemd/user/magic-mouse-gestures.service"
 rm -f "$HOME/.local/bin/cosmic-ws"
 rm -f "$HOME/.local/bin/magic-mouse-control-panel"
 rm -f "$HOME/.local/bin/magic-mouse-control-panel-cli"
@@ -30,16 +52,16 @@ fi
 rm -rf "$HOME/.local/share/magic-mouse-cosmic-workspaces"
 rm -f "${XDG_RUNTIME_DIR:-/tmp}/magic-mouse-cosmic-ws.state" 2>/dev/null || true
 
-say "Removing the Magic Mouse user installation..."
-rm -rf "$HOME/.config/magic-mouse-gestures"
-rm -rf "$HOME/.local/share/magic-mouse-linux-gestures"
-rm -f "$HOME/.config/systemd/user/magic-mouse-gestures.service"
+say "Cleaning old ydotool experiments..."
+sudo rm -f /etc/sudoers.d/ydotool-horseman 2>/dev/null || true
+sudo systemctl disable --now ydotool.service 2>/dev/null || true
+sudo rm -f /etc/systemd/system/ydotool.service 2>/dev/null || true
 
-say "Removing the local udev rule..."
+systemctl --user daemon-reload || true
+sudo systemctl daemon-reload || true
+
+say "Removing this package's local udev rule; install.sh will reinstall it."
 sudo rm -f /etc/udev/rules.d/99-magic-mouse-gestures-local.rules 2>/dev/null || true
 sudo udevadm control --reload-rules 2>/dev/null || true
 sudo udevadm trigger 2>/dev/null || true
-
-systemctl --user daemon-reload || true
-
-say "Done. To remove the cos-cli binary manually, run: rm -f ~/.cargo/bin/cos-cli"
+say "Reset complete. Backup: $BACKUP"

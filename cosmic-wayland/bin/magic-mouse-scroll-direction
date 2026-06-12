@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HOME = Path.home()
+COSMIC_DIR = HOME / ".config/cosmic/com.system76.CosmicComp/v1"
+
+STATIC_TARGETS = [
+    "input_default",
+    "input_default_override",
+    "input_mouse",
+    "input_mouse_override",
+]
+
+# This is the COSMIC field used in input_* RON config files.
+FIELD = "natural_scroll"
+
+
+def run(cmd):
+    return subprocess.run(cmd, text=True, capture_output=True)
+
+
+def backup(path: Path):
+    if path.exists():
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        shutil.copy2(path, path.with_name(path.name + f".bak.{ts}"))
+
+
+def candidate_files():
+    COSMIC_DIR.mkdir(parents=True, exist_ok=True)
+
+    result = []
+    for name in STATIC_TARGETS:
+        result.append(COSMIC_DIR / name)
+
+    # Also patch existing device-specific input files. Avoid touchpad, keyboard/xkb and unrelated files.
+    for path in COSMIC_DIR.glob("input*"):
+        name = path.name.lower()
+        if "touchpad" in name or "keyboard" in name or "xkb" in name:
+            continue
+        if path not in result:
+            result.append(path)
+
+    return result
+
+
+def set_gsettings(enabled: bool):
+    outputs = []
+    if shutil.which("gsettings"):
+        value = "true" if enabled else "false"
+        for schema in [
+            "org.gnome.desktop.peripherals.mouse",
+            "org.gnome.desktop.peripherals.touchpad",
+        ]:
+            probe = run(["gsettings", "list-keys", schema])
+            if probe.returncode == 0 and "natural-scroll" in probe.stdout.splitlines():
+                res = run(["gsettings", "set", schema, "natural-scroll", value])
+                outputs.append(f"gsettings {schema} natural-scroll={value}: rc={res.returncode}")
+    return outputs
+
+
+def update_ron_file(path: Path, enabled: bool):
+    value = "true" if enabled else "false"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        backup(path)
+        text = path.read_text(errors="replace")
+
+        if re.search(rf"{FIELD}\s*:\s*Some\((true|false)\)", text):
+            text = re.sub(rf"{FIELD}\s*:\s*Some\((true|false)\)", f"{FIELD}: Some({value})", text)
+        elif re.search(rf"{FIELD}\s*:\s*(true|false)", text):
+            text = re.sub(rf"{FIELD}\s*:\s*(true|false)", f"{FIELD}: Some({value})", text)
+        elif "(" in text:
+            text = text.replace("(", f"(\n    {FIELD}: Some({value}),", 1)
+        else:
+            text = f"(\n    {FIELD}: Some({value}),\n)\n"
+
+        path.write_text(text)
+    else:
+        path.write_text(f"(\n    {FIELD}: Some({value}),\n)\n")
+
+
+def read_ron_status(path: Path):
+    if not path.exists():
+        return "missing"
+    text = path.read_text(errors="replace")
+    m = re.search(rf"{FIELD}\s*:\s*Some\((true|false)\)", text) or re.search(rf"{FIELD}\s*:\s*(true|false)", text)
+    return m.group(1) if m else "unset"
+
+
+def status():
+    print("== Magic Mouse scroll direction helper v1.4.3 ==")
+    print("Natural scroll writes COSMIC/libinput configuration only.")
+    print("Important: some current COSMIC builds ignore mouse natural_scroll at runtime.")
+    print("If the values below change but scroll direction does not, this is likely the upstream COSMIC input bug.")
+    print()
+    print("== COSMIC config targets ==")
+    for path in candidate_files():
+        print(f"{path}: {FIELD}={read_ron_status(path)}")
+    print()
+    print("== gsettings fallback ==")
+    if shutil.which("gsettings"):
+        for schema in ["org.gnome.desktop.peripherals.mouse", "org.gnome.desktop.peripherals.touchpad"]:
+            probe = run(["gsettings", "list-keys", schema])
+            if probe.returncode == 0 and "natural-scroll" in probe.stdout.splitlines():
+                val = run(["gsettings", "get", schema, "natural-scroll"])
+                print(f"{schema}: natural-scroll={(val.stdout or '').strip()}")
+            else:
+                print(f"{schema}: unavailable")
+    else:
+        print("gsettings unavailable")
+
+
+def apply(enabled: bool):
+    for path in candidate_files():
+        update_ron_file(path, enabled)
+
+    for line in set_gsettings(enabled):
+        print(line)
+
+    print()
+    print("Applied:", "natural" if enabled else "traditional")
+    print()
+    print("Patched these COSMIC targets:")
+    for path in candidate_files():
+        print(f"  {path}: {FIELD}={read_ron_status(path)}")
+    print()
+    print("If the direction does not change:")
+    print("  1. Open COSMIC Settings > Input Devices > Mouse and toggle Natural Scrolling once.")
+    print("  2. Log out and back in, or restart COSMIC.")
+    print("  3. If it still does not change, your COSMIC build is probably hitting the known mouse natural-scroll bug.")
+    print()
+    print("Note: Desktop/workspace direction is controlled separately in Step 6 by swapping GESTURE_UP/GESTURE_DOWN.")
+
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in {"status", "natural", "traditional", "reverse", "normal", "toggle"}:
+        print("usage: magic-mouse-scroll-direction status|natural|traditional|toggle", file=sys.stderr)
+        return 2
+
+    cmd = sys.argv[1]
+    if cmd == "status":
+        status()
+        return 0
+    if cmd in {"natural", "reverse"}:
+        apply(True)
+        return 0
+    if cmd in {"traditional", "normal"}:
+        apply(False)
+        return 0
+
+    # Toggle using the best mouse-specific target.
+    current = read_ron_status(COSMIC_DIR / "input_mouse")
+    if current == "missing":
+        current = read_ron_status(COSMIC_DIR / "input_default")
+    apply(current != "true")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

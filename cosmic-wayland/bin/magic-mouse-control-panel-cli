@@ -1,0 +1,405 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION="1.4.3"
+PROFILE="$HOME/.config/magic-mouse-gestures/profile.env"
+STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/magic-mouse-cosmic-ws.state"
+RUNTIME_DIR="$HOME/.local/share/magic-mouse-cosmic-workspaces"
+VERIFY="$RUNTIME_DIR/verify.sh"
+REPAIR="$RUNTIME_DIR/repair-permissions.sh"
+GUI_PANEL="$HOME/.local/bin/magic-mouse-control-panel"
+SCROLL_HELPER="$HOME/.local/bin/magic-mouse-scroll-direction"
+
+bold() { printf '\033[1m%s\033[0m\n' "$*"; }
+ok() { printf '\033[1;32m[ok]\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*"; }
+err() { printf '\033[1;31m[error]\033[0m %s\n' "$*" >&2; }
+pause() { echo; read -r -p "Press Enter to continue..." _ || true; }
+
+require_profile() {
+  if [[ ! -f "$PROFILE" ]]; then
+    err "Profile not found: $PROFILE"
+    echo "Run the package install.sh first."
+    pause
+    return 1
+  fi
+}
+
+set_profile_value() {
+  local key="$1"
+  local val="$2"
+  local quote="${3:-0}"
+
+  require_profile || return 1
+  cp -a "$PROFILE" "$PROFILE.bak.$(date +%Y%m%d-%H%M%S)"
+
+  python3 - "$PROFILE" "$key" "$val" "$quote" <<'PY'
+import sys
+from pathlib import Path
+profile = Path(sys.argv[1])
+key = sys.argv[2]
+val = sys.argv[3]
+quote = sys.argv[4] == "1"
+new_line = f'{key}="{val}"' if quote else f'{key}={val}'
+lines = profile.read_text().splitlines()
+out = []
+seen = False
+for line in lines:
+    stripped = line.strip()
+    if stripped.startswith("#") or "=" not in line:
+        out.append(line)
+        continue
+    k = line.split("=", 1)[0].strip()
+    if k == key:
+        out.append(new_line)
+        seen = True
+    else:
+        out.append(line)
+if not seen:
+    out.append(new_line)
+profile.write_text("\n".join(out) + "\n")
+PY
+}
+
+restart_service() {
+  systemctl --user daemon-reload || true
+  systemctl --user restart magic-mouse-gestures
+}
+
+show_status() {
+  clear
+  bold "Magic Mouse COSMIC Control Panel CLI v$VERSION"
+  echo
+  echo "== Session =="
+  echo "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
+  echo "XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-unknown}"
+  echo
+  echo "== Service =="
+  systemctl --user status magic-mouse-gestures -l --no-pager || true
+  echo
+  echo "== Profile excerpt =="
+  if [[ -f "$PROFILE" ]]; then
+    grep -E '^(GESTURE_|MIN_TOUCHES|MAX_FINGERS|SWIPE_|AXIS_LOCK_RATIO|INVERT_|COMMAND_TIMEOUT_SEC|WAIT_RELEASE_AFTER_FIRE|BACKEND|HID_PATH)=' "$PROFILE" || true
+  else
+    echo "Profile not found: $PROFILE"
+  fi
+  echo
+  echo "== cosmic-ws state =="
+  if [[ -f "$STATE_FILE" ]]; then
+    cat "$STATE_FILE"
+  else
+    echo "No state file yet: $STATE_FILE"
+  fi
+  echo
+  echo "== Recent log =="
+  journalctl --user -u magic-mouse-gestures -n 20 -l --no-pager || true
+  pause
+}
+
+run_verify() {
+  clear
+  if [[ -x "$VERIFY" ]]; then
+    "$VERIFY" | less -R
+  else
+    warn "Installed verify script not found."
+    pause
+  fi
+}
+
+run_repair() {
+  clear
+  bold "Repair HID permissions"
+  echo
+  if [[ -x "$REPAIR" ]]; then
+    "$REPAIR"
+  else
+    warn "Installed repair script not found."
+  fi
+  restart_service || true
+  echo
+  ok "Repair command finished. If the mouse still cannot be read, power-cycle or reconnect it."
+  pause
+}
+
+set_sensitivity() {
+  clear
+  bold "Sensitivity presets"
+  echo "1) Sensitive"
+  echo "2) Default"
+  echo "3) Conservative"
+  echo "4) Custom"
+  echo "0) Back"
+  echo
+  read -r -p "Choose: " choice
+
+  case "$choice" in
+    1)
+      set_profile_value SWIPE_THRESHOLD_X 280
+      set_profile_value SWIPE_THRESHOLD_Y 320
+      set_profile_value SWIPE_COOLDOWN_MS 350
+      set_profile_value AXIS_LOCK_RATIO 1.10
+      ;;
+    2)
+      set_profile_value SWIPE_THRESHOLD_X 360
+      set_profile_value SWIPE_THRESHOLD_Y 420
+      set_profile_value SWIPE_COOLDOWN_MS 450
+      set_profile_value AXIS_LOCK_RATIO 1.15
+      ;;
+    3)
+      set_profile_value SWIPE_THRESHOLD_X 460
+      set_profile_value SWIPE_THRESHOLD_Y 540
+      set_profile_value SWIPE_COOLDOWN_MS 550
+      set_profile_value AXIS_LOCK_RATIO 1.25
+      ;;
+    4)
+      read -r -p "SWIPE_THRESHOLD_X: " x
+      read -r -p "SWIPE_THRESHOLD_Y: " y
+      read -r -p "SWIPE_COOLDOWN_MS: " c
+      read -r -p "AXIS_LOCK_RATIO: " a
+      [[ "$x" =~ ^[0-9]+$ ]] && set_profile_value SWIPE_THRESHOLD_X "$x"
+      [[ "$y" =~ ^[0-9]+$ ]] && set_profile_value SWIPE_THRESHOLD_Y "$y"
+      [[ "$c" =~ ^[0-9]+$ ]] && set_profile_value SWIPE_COOLDOWN_MS "$c"
+      [[ "$a" =~ ^[0-9]+([.][0-9]+)?$ ]] && set_profile_value AXIS_LOCK_RATIO "$a"
+      ;;
+    0) return 0 ;;
+    *) warn "Unknown choice"; pause; return 0 ;;
+  esac
+
+  restart_service
+  ok "Sensitivity updated and service restarted."
+  pause
+}
+
+toggle_value() {
+  local key="$1"
+  require_profile || return 1
+  local cur
+  cur="$(grep -E "^${key}=" "$PROFILE" | tail -1 | cut -d= -f2- | tr -d '"' || true)"
+  if [[ "$cur" == "1" ]]; then
+    set_profile_value "$key" 0
+    ok "$key=0"
+  else
+    set_profile_value "$key" 1
+    ok "$key=1"
+  fi
+  restart_service
+  pause
+}
+
+enable_one_finger_mode() {
+  echo
+  warn "Experimental: 1-finger mode sets MIN_TOUCHES=1. It may conflict with normal mouse movement or scrolling."
+  read -r -p "Enable experimental 1-finger gesture mode? [y/N] " ans
+  [[ "$ans" =~ ^[Yy]$ ]] || return 0
+  set_profile_value MIN_TOUCHES 1
+  set_profile_value MAX_FINGERS 5
+  restart_service
+  ok "Experimental 1-finger gesture mode enabled."
+  pause
+}
+
+enable_two_finger_mode() {
+  set_profile_value MIN_TOUCHES 2
+  set_profile_value MAX_FINGERS 5
+  restart_service
+  ok "Stable 2-finger mode enabled."
+  pause
+}
+
+configure_inversion() {
+  while true; do
+    clear
+    bold "Per-finger inversion"
+    echo "Important: 1-finger inversion only works when 1-finger gesture mode is enabled."
+    echo "It does not invert normal pointer movement or kernel scrolling."
+    echo
+    echo "1) Enable stable 2-finger mode"
+    echo "2) Enable experimental 1-finger gesture mode"
+    echo "3) Toggle 1-finger invert X"
+    echo "4) Toggle 1-finger invert Y"
+    echo "5) Toggle 2-finger invert X"
+    echo "6) Toggle 2-finger invert Y"
+    echo "0) Back"
+    echo
+    read -r -p "Choose: " choice
+    case "$choice" in
+      1) enable_two_finger_mode ;;
+      2) enable_one_finger_mode ;;
+      3) toggle_value INVERT_X_1F ;;
+      4) toggle_value INVERT_Y_1F ;;
+      5) toggle_value INVERT_X_2F ;;
+      6) toggle_value INVERT_Y_2F ;;
+      0) return 0 ;;
+      *) warn "Unknown choice"; pause ;;
+    esac
+  done
+}
+
+configure_scroll_direction() {
+  while true; do
+    clear
+    bold "Scroll direction"
+    echo "This writes native COSMIC/libinput natural_scroll config."
+    echo "It is not the gesture daemon's swipe inversion setting."
+    echo
+    if [[ -x "$SCROLL_HELPER" ]]; then
+      "$SCROLL_HELPER" status || true
+    else
+      warn "Scroll helper not found: $SCROLL_HELPER"
+    fi
+    echo
+    echo "1) Natural / Mac-style scroll"
+    echo "2) Traditional scroll"
+    echo "3) Toggle scroll direction"
+    echo "0) Back"
+    echo
+    read -r -p "Choose: " choice
+    case "$choice" in
+      1) "$SCROLL_HELPER" natural; pause ;;
+      2) "$SCROLL_HELPER" traditional; pause ;;
+      3) "$SCROLL_HELPER" toggle; pause ;;
+      0) return 0 ;;
+      *) warn "Unknown choice"; pause ;;
+    esac
+  done
+}
+
+configure_gestures() {
+  clear
+  bold "Gesture mapping / 2-finger direction"
+  echo "1) Stable default"
+  echo "   Left/right: browser back/forward"
+  echo "   Up/down: COSMIC workspace up/down"
+  echo
+  echo "2) Disable workspace gestures"
+  echo "3) Normal desktop/workspace direction"
+  echo "4) Invert desktop/workspace direction"
+  echo "5) Normal browser back/forward direction"
+  echo "6) Invert browser back/forward direction"
+  echo "0) Back"
+  echo
+  read -r -p "Choose: " choice
+  case "$choice" in
+    1)
+      set_profile_value GESTURE_LEFT "wtype -M alt -P left -p left -m alt" 1
+      set_profile_value GESTURE_RIGHT "wtype -M alt -P right -p right -m alt" 1
+      set_profile_value GESTURE_UP "$HOME/.local/bin/cosmic-ws up" 1
+      set_profile_value GESTURE_DOWN "$HOME/.local/bin/cosmic-ws down" 1
+      set_profile_value MIN_TOUCHES 2
+      set_profile_value MAX_FINGERS 5
+      restart_service
+      ok "Default mapping restored."
+      ;;
+    2)
+      set_profile_value GESTURE_UP "true" 1
+      set_profile_value GESTURE_DOWN "true" 1
+      restart_service
+      ok "Workspace gestures disabled."
+      ;;
+    3)
+      set_profile_value GESTURE_UP "$HOME/.local/bin/cosmic-ws up" 1
+      set_profile_value GESTURE_DOWN "$HOME/.local/bin/cosmic-ws down" 1
+      set_profile_value MIN_TOUCHES 2
+      set_profile_value MAX_FINGERS 5
+      restart_service
+      ok "Desktop/workspace direction set to normal."
+      ;;
+    4)
+      set_profile_value GESTURE_UP "$HOME/.local/bin/cosmic-ws down" 1
+      set_profile_value GESTURE_DOWN "$HOME/.local/bin/cosmic-ws up" 1
+      set_profile_value MIN_TOUCHES 2
+      set_profile_value MAX_FINGERS 5
+      restart_service
+      ok "Desktop/workspace direction inverted."
+      ;;
+    5)
+      set_profile_value GESTURE_LEFT "wtype -M alt -P left -p left -m alt" 1
+      set_profile_value GESTURE_RIGHT "wtype -M alt -P right -p right -m alt" 1
+      set_profile_value MIN_TOUCHES 2
+      set_profile_value MAX_FINGERS 5
+      restart_service
+      ok "Browser direction set to normal."
+      ;;
+    6)
+      set_profile_value GESTURE_LEFT "wtype -M alt -P right -p right -m alt" 1
+      set_profile_value GESTURE_RIGHT "wtype -M alt -P left -p left -m alt" 1
+      set_profile_value MIN_TOUCHES 2
+      set_profile_value MAX_FINGERS 5
+      restart_service
+      ok "Browser direction inverted."
+      ;;
+    0) return 0 ;;
+    *) warn "Unknown choice" ;;
+  esac
+  pause
+}
+
+test_workspace() {
+  clear
+  bold "Test COSMIC workspace helper"
+  echo "This runs: cosmic-ws down, then cosmic-ws up."
+  echo
+  read -r -p "Run test now? [y/N] " ans
+  [[ "$ans" =~ ^[Yy]$ ]] || return 0
+  "$HOME/.local/bin/cosmic-ws" down || true
+  sleep 0.5
+  "$HOME/.local/bin/cosmic-ws" up || true
+  echo
+  ok "Test command finished."
+  pause
+}
+
+open_profile() {
+  require_profile || return 1
+  "${EDITOR:-nano}" "$PROFILE"
+  restart_service
+}
+
+launch_gui() {
+  if [[ -x "$GUI_PANEL" ]]; then
+    nohup "$GUI_PANEL" >/dev/null 2>&1 &
+    ok "GUI panel launched."
+  else
+    warn "GUI panel not found: $GUI_PANEL"
+  fi
+  pause
+}
+
+main_menu() {
+  while true; do
+    clear
+    bold "Magic Mouse COSMIC Control Panel CLI v$VERSION"
+    echo
+    echo "1) Status"
+    echo "2) Restart gesture service"
+    echo "3) Repair HID permissions"
+    echo "4) Sensitivity presets"
+    echo "5) Scroll direction"
+    echo "6) Gesture mapping"
+    echo "7) Test workspace helper"
+    echo "8) Full verify report"
+    echo "9) Launch GUI panel"
+    echo "a) Advanced gesture inversion"
+    echo "e) Edit profile.env"
+    echo "q) Quit"
+    echo
+    read -r -p "Choose: " choice
+    case "$choice" in
+      1) show_status ;;
+      2) restart_service; ok "Service restarted."; pause ;;
+      3) run_repair ;;
+      4) set_sensitivity ;;
+      5) configure_scroll_direction ;;
+      6) configure_gestures ;;
+      7) test_workspace ;;
+      8) run_verify ;;
+      9) launch_gui ;;
+      a|A) configure_inversion ;;
+      e|E) open_profile ;;
+      q|Q) exit 0 ;;
+      *) warn "Unknown choice"; pause ;;
+    esac
+  done
+}
+
+main_menu

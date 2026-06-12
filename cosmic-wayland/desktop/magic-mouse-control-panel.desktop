@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Magic Mouse Control Panel
-Comment=Configure Magic Mouse Linux Gestures
-Exec=/home/__USER__/.local/bin/magic-mouse-control-panel
-Terminal=false
-Categories=Settings;Utility;
-StartupNotify=true
