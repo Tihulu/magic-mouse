@@ -6,7 +6,7 @@ Desktop-specific Apple Magic Mouse gesture packages for Linux.
 
 | Folder | Version | Target desktop | Status |
 |---|---:|---|---|
-| `cosmic-wayland/` | `1.4.3` | Pop!_OS COSMIC / COSMIC Wayland | Stable Magic Mouse gesture setup with GUI control panel and COSMIC workspace helper |
+| `cosmic-wayland/` | `1.4.4` | Pop!_OS COSMIC / COSMIC Wayland | Stable Magic Mouse gesture setup with GUI control panel, COSMIC workspace helper, and dock icon matching fix |
 | `gnome-ubuntu/` | `0.2.1` | Ubuntu GNOME / Pop!_OS GNOME / GNOME Wayland | Full GNOME package with gesture daemon, GUI control panel, Shell extension, DBus workspace helper, systemd service, udev rule, and diagnostics |
 
 ## Pop!_OS COSMIC / COSMIC Wayland
@@ -41,6 +41,12 @@ Launch the graphical control panel:
 
 ```bash
 magic-mouse-control-panel
+```
+
+For best dock icon matching on COSMIC, launch it from the app launcher or run:
+
+```bash
+gtk-launch magic-mouse-control-panel
 ```
 
 CLI fallback:
