@@ -7,7 +7,7 @@ Two desktop-specific Magic Mouse gesture implementations for Linux.
 | Folder | Version | Target desktop | Status |
 |---|---:|---|---|
 | `cosmic-wayland/` | `1.1.0` | Pop!_OS COSMIC / COSMIC Wayland | Working COSMIC gesture daemon with control panel |
-| `gnome-ubuntu/` | `0.1.1` | Ubuntu GNOME / GNOME Wayland | GNOME workspace bridge package with Shell extension + DBus helper |
+| `gnome-ubuntu/` | `0.1.2` | Ubuntu GNOME / GNOME Wayland | GNOME workspace bridge package with Shell extension + DBus helper |
 
 ## COSMIC / Wayland
 
@@ -61,3 +61,4 @@ systemctl --user restart magic-mouse-gestures.service
 - COSMIC and GNOME use different workspace mechanisms, so they are kept in separate folders.
 - COSMIC uses the Python HID gesture daemon and Wayland key sending.
 - GNOME uses a Shell extension/DBus bridge because direct workspace control from outside GNOME Shell is restricted on modern GNOME Wayland sessions.
+- GNOME/Ubuntu 0.1.2 supports the GNOME 45+ extension variant through GNOME Shell 50 metadata.
