@@ -17,7 +17,7 @@ major_from_gnome_shell() {
 MAJOR="${GNOME_SHELL_MAJOR:-$(major_from_gnome_shell)}"
 case "$MAJOR" in
   42|43|44) SRC="$ROOT/extension-src/gnome-42-44/$UUID" ;;
-  45|46|47|48|49) SRC="$ROOT/extension-src/gnome-45-plus/$UUID" ;;
+  45|46|47|48|49|50) SRC="$ROOT/extension-src/gnome-45-plus/$UUID" ;;
   0) SRC="$ROOT/extension-src/gnome-45-plus/$UUID" ;;
   *)
     echo "Warning: untested GNOME Shell major version '$MAJOR'. Installing GNOME 45+ extension variant." >&2
@@ -37,7 +37,7 @@ if command -v gnome-extensions >/dev/null 2>&1; then
 fi
 
 cat <<MSG
-Installed Magic Mouse GNOME/Ubuntu workspace backend 0.1.1.
+Installed Magic Mouse GNOME/Ubuntu workspace backend 0.1.2.
 
 Detected GNOME Shell major version: $MAJOR
 Installed extension variant: $SRC
