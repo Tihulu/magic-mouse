@@ -9,16 +9,16 @@ The package avoids unreliable synthetic workspace keyboard shortcuts and uses a 
 ## Quick install from GitHub
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/quick-install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.6.sh)"
 ```
 
 Alternative with `wget`:
 
 ```bash
-bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/quick-install.sh)"
+bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.6.sh)"
 ```
 
-The quick installer applies the **v1.4.6 non-blocking scroll patch**, the fast startup patch, and the COSMIC dock icon fix after installation.
+The setup script normalizes the installer label to **v1.4.6**, applies the non-blocking scroll patch, the fast startup patch, and the COSMIC dock icon fix after installation.
 
 ## Manual install
 
@@ -26,14 +26,13 @@ The quick installer applies the **v1.4.6 non-blocking scroll patch**, the fast s
 git clone https://github.com/Tihulu/magic-mouse.git
 cd magic-mouse/cosmic-wayland
 chmod +x *.sh
-./reset.sh
-./install.sh
+./setup-cosmic-v1.4.6.sh
 ```
 
 If your Magic Mouse Linux gestures source folder is somewhere else:
 
 ```bash
-MM_SOURCE=/full/path/to/magic-mouse-linux-gestures ./install.sh
+MM_SOURCE=/full/path/to/magic-mouse-linux-gestures ./setup-cosmic-v1.4.6.sh
 ```
 
 Default source path used by this package:
