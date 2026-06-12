@@ -7,7 +7,7 @@ Desktop-specific Apple Magic Mouse gesture packages for Linux.
 | Folder | Version | Target desktop | Status |
 |---|---:|---|---|
 | `cosmic-wayland/` | `1.4.3` | Pop!_OS COSMIC / COSMIC Wayland | Stable Magic Mouse gesture setup with GUI control panel and COSMIC workspace helper |
-| `gnome-ubuntu/` | `0.1.2` | Ubuntu GNOME / GNOME Wayland | GNOME workspace bridge package with Shell extension and DBus helper |
+| `gnome-ubuntu/` | `0.2.0` | Ubuntu GNOME / Pop!_OS GNOME / GNOME Wayland | Full GNOME package with gesture daemon, GUI control panel, Shell extension, DBus workspace helper, systemd service, udev rule, and diagnostics |
 
 ## Pop!_OS COSMIC / COSMIC Wayland
 
@@ -58,26 +58,97 @@ The COSMIC package uses a stateful `cosmic-ws` helper powered by `cos-cli`, beca
 
 ## GNOME / Ubuntu
 
+The GNOME package is for Ubuntu GNOME, Pop!_OS GNOME, and other GNOME Shell sessions. It includes the Magic Mouse gesture daemon, graphical control panel, GNOME Shell workspace extension, DBus workspace helper, user systemd service, udev permissions, and diagnostic tools.
+
+It supports two GNOME extension paths:
+
+- GNOME 42-44: legacy `imports.*` extension path.
+- GNOME 45 and newer: modern ES module extension path.
+
+### Quick install from GitHub
+
 ```bash
-cd gnome-ubuntu
-./install.sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/gnome-ubuntu/quick-install.sh)"
 ```
 
-Log out and log back in after installing the GNOME Shell extension, then test:
+Alternative with `wget`:
+
+```bash
+bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/gnome-ubuntu/quick-install.sh)"
+```
+
+### Manual clone install
+
+```bash
+git clone https://github.com/Tihulu/magic-mouse.git
+cd magic-mouse/gnome-ubuntu
+./install.sh --install-deps --install-udev
+```
+
+After installing on GNOME Wayland, log out and log back in so GNOME Shell loads the extension cleanly. Reconnect the Magic Mouse if needed.
+
+### Test the GNOME package
 
 ```bash
 magic-mouse-gnome-probe
+magic-mouse-ws ping
 magic-mouse-ws status
 magic-mouse-ws down
 sleep 0.5
 magic-mouse-ws up
+magic-mouse-gesture-daemon --list-devices
 ```
 
-If an existing gesture daemon still calls `cosmic-ws`, install the compatibility shim:
+Expected default workspace gestures:
+
+| Gesture | Action |
+|---|---|
+| Two-finger swipe up | Previous workspace |
+| Two-finger swipe down | Next workspace |
+
+Open the graphical control panel:
+
+```bash
+magic-mouse-control-panel
+```
+
+Service and log helpers:
+
+```bash
+magic-mouse-service status
+magic-mouse-service logs 200
+magic-mouse-service monitor
+```
+
+Export diagnostics if something does not work:
+
+```bash
+magic-mouse-diagnose
+```
+
+If an old gesture daemon or config still calls `cosmic-ws`, install the compatibility shim:
+
+```bash
+./install.sh --cosmic-compat
+```
+
+or after installation:
 
 ```bash
 magic-mouse-gnome-integrate install-cosmic-ws-shim
 systemctl --user restart magic-mouse-gestures.service
+```
+
+### GNOME vs COSMIC
+
+Use `gnome-ubuntu/` only for GNOME Shell sessions. If you are on the new COSMIC desktop, use `cosmic-wayland/` instead.
+
+Check your session:
+
+```bash
+echo "$XDG_CURRENT_DESKTOP"
+echo "$XDG_SESSION_TYPE"
+gnome-shell --version 2>/dev/null || true
 ```
 
 ## Notes
@@ -85,4 +156,4 @@ systemctl --user restart magic-mouse-gestures.service
 - COSMIC and GNOME use different workspace mechanisms, so they are kept in separate folders.
 - COSMIC uses direct Magic Mouse HID input plus `cos-cli` workspace activation.
 - GNOME uses a Shell extension / DBus bridge because direct workspace control from outside GNOME Shell is restricted on modern GNOME Wayland sessions.
-- GNOME/Ubuntu 0.1.2 supports the GNOME 45+ extension variant through GNOME Shell 50 metadata.
+- GNOME/Ubuntu 0.2.0 is the full GNOME package: daemon, GUI control panel, workspace backend, service helpers, udev permissions, and diagnostics.
