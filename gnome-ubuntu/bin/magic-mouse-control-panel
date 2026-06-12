@@ -9,8 +9,48 @@ import sys
 import time
 from pathlib import Path
 
+VERSION = "0.2.1"
 APP_DIR = Path.home() / ".config" / "magic-mouse"
 CONFIG_PATH = APP_DIR / "config.json"
+
+WORKSPACE_NORMAL = {
+    "swipe_up": "magic-mouse-ws up",
+    "swipe_down": "magic-mouse-ws down",
+}
+WORKSPACE_INVERTED = {
+    "swipe_up": "magic-mouse-ws down",
+    "swipe_down": "magic-mouse-ws up",
+}
+HORIZONTAL_NORMAL = {
+    "swipe_left": "magic-mouse-ws left",
+    "swipe_right": "magic-mouse-ws right",
+}
+HORIZONTAL_INVERTED = {
+    "swipe_left": "magic-mouse-ws right",
+    "swipe_right": "magic-mouse-ws left",
+}
+
+SENSITIVITY_PRESETS = {
+    "Sensitive": {
+        "threshold_x": 520,
+        "threshold_y": 460,
+        "cooldown_ms": 420,
+        "diagonal_bias": 1.10,
+    },
+    "Default": {
+        "threshold_x": 700,
+        "threshold_y": 600,
+        "cooldown_ms": 550,
+        "diagonal_bias": 1.25,
+    },
+    "Conservative": {
+        "threshold_x": 900,
+        "threshold_y": 780,
+        "cooldown_ms": 650,
+        "diagonal_bias": 1.35,
+    },
+}
+
 DEFAULT_CONFIG = {
     "backend": "evdev",
     "device_name_regex": "Magic Mouse|Magic Trackpad",
@@ -26,10 +66,8 @@ DEFAULT_CONFIG = {
     "dry_run": False,
     "log_level": "info",
     "actions": {
-        "swipe_up": "magic-mouse-ws up",
-        "swipe_down": "magic-mouse-ws down",
-        "swipe_left": "magic-mouse-ws left",
-        "swipe_right": "magic-mouse-ws right",
+        **WORKSPACE_NORMAL,
+        **HORIZONTAL_NORMAL,
     },
     "enabled": {
         "swipe_up": True,
@@ -58,7 +96,7 @@ def load_config():
     try:
         return deep_merge(DEFAULT_CONFIG, json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
     except Exception as exc:
-        print(f"Config okunamadı: {CONFIG_PATH}: {exc}", file=sys.stderr)
+        print(f"Could not read config: {CONFIG_PATH}: {exc}", file=sys.stderr)
         return dict(DEFAULT_CONFIG)
 
 
@@ -87,6 +125,58 @@ def cli_export():
     print(out)
 
 
+class ScrollableFrame:
+    def __init__(self, parent, ttk, tk, padding=12):
+        self.tk = tk
+        self.ttk = ttk
+        self.frame = ttk.Frame(parent)
+        self.canvas = tk.Canvas(self.frame, borderwidth=0, highlightthickness=0)
+        self.vbar = ttk.Scrollbar(self.frame, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.vbar.set)
+        self.inner = ttk.Frame(self.canvas, padding=padding)
+        self.window_id = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
+
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        self.vbar.grid(row=0, column=1, sticky="ns")
+        self.frame.rowconfigure(0, weight=1)
+        self.frame.columnconfigure(0, weight=1)
+
+        self.inner.bind("<Configure>", self._on_inner_configure)
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        self.canvas.bind("<Enter>", self._bind_mousewheel)
+        self.canvas.bind("<Leave>", self._unbind_mousewheel)
+
+    def _on_inner_configure(self, _event=None):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event):
+        self.canvas.itemconfigure(self.window_id, width=event.width)
+
+    def _bind_mousewheel(self, _event=None):
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        self.canvas.bind_all("<Button-4>", self._on_button4)
+        self.canvas.bind_all("<Button-5>", self._on_button5)
+
+    def _unbind_mousewheel(self, _event=None):
+        self.canvas.unbind_all("<MouseWheel>")
+        self.canvas.unbind_all("<Button-4>")
+        self.canvas.unbind_all("<Button-5>")
+
+    def _on_mousewheel(self, event):
+        step = int(-1 * (event.delta / 120)) if event.delta else 0
+        if step:
+            self.canvas.yview_scroll(step, "units")
+        return "break"
+
+    def _on_button4(self, _event):
+        self.canvas.yview_scroll(-3, "units")
+        return "break"
+
+    def _on_button5(self, _event):
+        self.canvas.yview_scroll(3, "units")
+        return "break"
+
+
 class Panel:
     def __init__(self, root):
         import tkinter as tk
@@ -95,75 +185,174 @@ class Panel:
         self.ttk = ttk
         self.root = root
         self.config = load_config()
-        root.title("Magic Mouse Control Panel")
-        root.geometry("780x660")
-
         self.vars = {}
-        main = ttk.Frame(root, padding=12)
-        main.pack(fill="both", expand=True)
+        self.status_var = tk.StringVar()
+        self.session_var = tk.StringVar(
+            value=f"Session: {os.getenv('XDG_SESSION_TYPE', 'unknown')} / {os.getenv('XDG_CURRENT_DESKTOP', 'unknown')}"
+        )
+        self.config_path_var = tk.StringVar(value=str(CONFIG_PATH))
 
-        title = ttk.Label(main, text="Magic Mouse GNOME/Ubuntu", font=("Sans", 16, "bold"))
-        title.pack(anchor="w")
-        subtitle = ttk.Label(main, text="İki parmak swipe → GNOME workspace komutları. Ayarları kaydedince servisi yeniden başlat.")
-        subtitle.pack(anchor="w", pady=(0, 10))
+        root.title(f"Magic Mouse Control Panel v{VERSION}")
+        root.geometry("980x800")
+        root.minsize(760, 560)
+        self._build_ui()
+        self.refresh_status()
 
-        nb = ttk.Notebook(main)
-        nb.pack(fill="both", expand=True)
-        self.general = ttk.Frame(nb, padding=10)
-        self.actions = ttk.Frame(nb, padding=10)
-        self.service = ttk.Frame(nb, padding=10)
-        nb.add(self.general, text="Ayarlar")
-        nb.add(self.actions, text="Hareketler")
-        nb.add(self.service, text="Servis / Tanı")
-
-        self._build_general()
-        self._build_actions()
-        self._build_service()
-
-        buttons = ttk.Frame(main)
-        buttons.pack(fill="x", pady=(10, 0))
-        ttk.Button(buttons, text="Kaydet", command=self.save).pack(side="left")
-        ttk.Button(buttons, text="Kaydet + Restart", command=self.save_restart).pack(side="left", padx=8)
-        ttk.Button(buttons, text="Kapat", command=root.destroy).pack(side="right")
-
-    def _entry(self, parent, key, label, row, width=32):
+    def _build_ui(self):
         ttk = self.ttk
-        tk = self.tk
-        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=4)
-        v = tk.StringVar(value=str(self.config.get(key, DEFAULT_CONFIG.get(key, ""))))
-        self.vars[key] = v
-        ttk.Entry(parent, textvariable=v, width=width).grid(row=row, column=1, sticky="ew", pady=4)
-        return v
+        root = self.root
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(1, weight=1)
 
-    def _check(self, parent, key, label, row):
+        header = ttk.Frame(root, padding=12)
+        header.grid(row=0, column=0, sticky="ew")
+        header.columnconfigure(0, weight=1)
+        ttk.Label(header, text=f"Magic Mouse Control Panel v{VERSION}", font=("Sans", 16, "bold")).grid(row=0, column=0, sticky="w")
+        ttk.Label(header, text="GNOME / Ubuntu workspace gestures", font=("Sans", 10)).grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(header, textvariable=self.session_var).grid(row=2, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(header, textvariable=self.status_var, foreground="#0a6").grid(row=3, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(header, textvariable=self.config_path_var).grid(row=4, column=0, sticky="w", pady=(2, 0))
+
+        notebook = ttk.Notebook(root)
+        notebook.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
+
+        setup_shell = ScrollableFrame(notebook, ttk, self.tk, padding=12)
+        settings_shell = ScrollableFrame(notebook, ttk, self.tk, padding=12)
+        actions_shell = ScrollableFrame(notebook, ttk, self.tk, padding=12)
+        service = ttk.Frame(notebook, padding=12)
+
+        notebook.add(setup_shell.frame, text="Setup Flow")
+        notebook.add(settings_shell.frame, text="Advanced Settings")
+        notebook.add(actions_shell.frame, text="Gesture Commands")
+        notebook.add(service, text="Tools / Diagnostics")
+
+        self._build_setup(setup_shell.inner)
+        self._build_settings(settings_shell.inner)
+        self._build_actions(actions_shell.inner)
+        self._build_service(service)
+
+        footer = ttk.Frame(root, padding=(12, 0, 12, 12))
+        footer.grid(row=2, column=0, sticky="ew")
+        for i in range(5):
+            footer.columnconfigure(i, weight=1)
+        ttk.Button(footer, text="Reload", command=self.reload).grid(row=0, column=0, padx=4, sticky="ew")
+        ttk.Button(footer, text="Defaults", command=self.load_defaults).grid(row=0, column=1, padx=4, sticky="ew")
+        ttk.Button(footer, text="Apply", command=self.save).grid(row=0, column=2, padx=4, sticky="ew")
+        ttk.Button(footer, text="Apply & Restart", command=self.save_restart).grid(row=0, column=3, padx=4, sticky="ew")
+        ttk.Button(footer, text="Close", command=root.destroy).grid(row=0, column=4, padx=4, sticky="ew")
+
+    def _build_setup(self, parent):
         ttk = self.ttk
-        tk = self.tk
-        v = tk.BooleanVar(value=bool(self.config.get(key, DEFAULT_CONFIG.get(key, False))))
-        self.vars[key] = v
-        ttk.Checkbutton(parent, text=label, variable=v).grid(row=row, column=0, columnspan=2, sticky="w", pady=4)
-        return v
+        parent.columnconfigure(0, weight=1)
 
-    def _build_general(self):
-        f = self.general
-        f.columnconfigure(1, weight=1)
-        self._entry(f, "device_name_regex", "Cihaz adı regex", 0, 46)
-        self._entry(f, "min_fingers", "Parmak sayısı", 1)
-        self._entry(f, "threshold_x", "Yatay eşik", 2)
-        self._entry(f, "threshold_y", "Dikey eşik", 3)
-        self._entry(f, "diagonal_bias", "Diagonal bias", 4)
-        self._entry(f, "cooldown_ms", "Cooldown ms", 5)
-        self._entry(f, "min_duration_ms", "Min süre ms", 6)
-        self._entry(f, "max_duration_ms", "Max süre ms", 7)
-        self._entry(f, "log_level", "Log level", 8)
-        self._check(f, "invert_x", "Yatay yönü ters çevir", 9)
-        self._check(f, "invert_y", "Dikey yönü ters çevir", 10)
-        self._check(f, "dry_run", "Dry run: algıla ama komut çalıştırma", 11)
-        help_txt = "Not: Hareket yönleri ters gelirse önce invert_y / invert_x ile dene. Eşik büyürse hareket daha zor algılanır."
-        self.ttk.Label(f, text=help_txt, wraplength=680).grid(row=12, column=0, columnspan=2, sticky="w", pady=12)
+        intro = (
+            "Recommended order: 1) Status  2) Restart gesture service  3) Sensitivity preset  "
+            "4) Direction buttons  5) Test workspace switching"
+        )
+        ttk.Label(parent, text=intro, wraplength=900, justify="left").grid(row=0, column=0, sticky="w", pady=(0, 10))
 
-    def _build_actions(self):
-        f = self.actions
-        f.columnconfigure(2, weight=1)
+        s1 = ttk.LabelFrame(parent, text="Step 1 — Status", padding=10)
+        s1.grid(row=1, column=0, sticky="ew", pady=6)
+        for i in range(4):
+            s1.columnconfigure(i, weight=1)
+        ttk.Button(s1, text="Refresh Status", command=self.refresh_status).grid(row=0, column=0, sticky="ew", padx=4, pady=3)
+        ttk.Button(s1, text="GNOME Ping", command=lambda: self.run_show("magic-mouse-ws ping")).grid(row=0, column=1, sticky="ew", padx=4, pady=3)
+        ttk.Button(s1, text="Workspace Status", command=lambda: self.run_show("magic-mouse-ws status")).grid(row=0, column=2, sticky="ew", padx=4, pady=3)
+        ttk.Button(s1, text="List Devices", command=lambda: self.run_show("magic-mouse-gesture-daemon --list-devices", timeout=20)).grid(row=0, column=3, sticky="ew", padx=4, pady=3)
+
+        s2 = ttk.LabelFrame(parent, text="Step 2 — Service", padding=10)
+        s2.grid(row=2, column=0, sticky="ew", pady=6)
+        for i in range(3):
+            s2.columnconfigure(i, weight=1)
+        ttk.Button(s2, text="Restart Gesture Service", command=self.restart_service).grid(row=0, column=0, sticky="ew", padx=4, pady=3)
+        ttk.Button(s2, text="Show Service Status", command=lambda: self.run_show("systemctl --user status magic-mouse-gestures.service --no-pager", timeout=20)).grid(row=0, column=1, sticky="ew", padx=4, pady=3)
+        ttk.Button(s2, text="Show Recent Logs", command=lambda: self.run_show("journalctl --user -u magic-mouse-gestures.service -n 100 --no-pager", timeout=20)).grid(row=0, column=2, sticky="ew", padx=4, pady=3)
+
+        s3 = ttk.LabelFrame(parent, text="Step 3 — Sensitivity presets", padding=10)
+        s3.grid(row=3, column=0, sticky="ew", pady=6)
+        for i in range(3):
+            s3.columnconfigure(i, weight=1)
+        ttk.Button(s3, text="Sensitive", command=lambda: self.apply_sensitivity("Sensitive")).grid(row=0, column=0, sticky="ew", padx=4, pady=3)
+        ttk.Button(s3, text="Default", command=lambda: self.apply_sensitivity("Default")).grid(row=0, column=1, sticky="ew", padx=4, pady=3)
+        ttk.Button(s3, text="Conservative", command=lambda: self.apply_sensitivity("Conservative")).grid(row=0, column=2, sticky="ew", padx=4, pady=3)
+
+        s4 = ttk.LabelFrame(parent, text="Step 4 — Direction / inversion", padding=10)
+        s4.grid(row=4, column=0, sticky="ew", pady=6)
+        for i in range(4):
+            s4.columnconfigure(i, weight=1)
+        ttk.Label(
+            s4,
+            text=(
+                "Use these first if workspace direction feels wrong. They swap commands like the COSMIC panel. "
+                "Use physical axis inversion only when the detected swipe itself is reversed."
+            ),
+            wraplength=900,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+        ttk.Button(s4, text="Apply Stable Default", command=self.apply_stable_default).grid(row=1, column=0, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Normal Workspace Direction", command=self.normal_workspace_direction).grid(row=1, column=1, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Invert Workspace Direction", command=self.invert_workspace_direction).grid(row=1, column=2, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Disable Workspace Gestures", command=self.disable_workspace_gestures).grid(row=1, column=3, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Normal Horizontal Direction", command=self.normal_horizontal_direction).grid(row=2, column=1, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Invert Horizontal Direction", command=self.invert_horizontal_direction).grid(row=2, column=2, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Normal Physical Axes", command=lambda: self.apply_axis_inversion(False, False)).grid(row=3, column=0, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Invert X Axis", command=lambda: self.apply_axis_inversion(True, self.vars["invert_y"].get())).grid(row=3, column=1, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Invert Y Axis", command=lambda: self.apply_axis_inversion(self.vars["invert_x"].get(), True)).grid(row=3, column=2, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Invert Both Axes", command=lambda: self.apply_axis_inversion(True, True)).grid(row=3, column=3, sticky="ew", padx=4, pady=3)
+
+        s5 = ttk.LabelFrame(parent, text="Step 5 — Test", padding=10)
+        s5.grid(row=5, column=0, sticky="ew", pady=6)
+        for i in range(4):
+            s5.columnconfigure(i, weight=1)
+        ttk.Button(s5, text="Test Workspace Up", command=lambda: self.run_show("magic-mouse-ws up")).grid(row=0, column=0, sticky="ew", padx=4, pady=3)
+        ttk.Button(s5, text="Test Workspace Down", command=lambda: self.run_show("magic-mouse-ws down")).grid(row=0, column=1, sticky="ew", padx=4, pady=3)
+        ttk.Button(s5, text="Test Workspace Left", command=lambda: self.run_show("magic-mouse-ws left")).grid(row=0, column=2, sticky="ew", padx=4, pady=3)
+        ttk.Button(s5, text="Test Workspace Right", command=lambda: self.run_show("magic-mouse-ws right")).grid(row=0, column=3, sticky="ew", padx=4, pady=3)
+
+    def _build_settings(self, parent):
+        ttk = self.ttk
+        parent.columnconfigure(0, weight=1)
+        parent.columnconfigure(1, weight=1)
+
+        basics = ttk.LabelFrame(parent, text="Gesture basics", padding=12)
+        basics.grid(row=0, column=0, sticky="nsew", padx=(0, 8), pady=(0, 8))
+        tuning = ttk.LabelFrame(parent, text="Detection tuning", padding=12)
+        tuning.grid(row=0, column=1, sticky="nsew", padx=(8, 0), pady=(0, 8))
+        inversion = ttk.LabelFrame(parent, text="Physical axis inversion", padding=12)
+        inversion.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+
+        basics.columnconfigure(1, weight=1)
+        tuning.columnconfigure(1, weight=1)
+        inversion.columnconfigure(0, weight=1)
+        inversion.columnconfigure(1, weight=1)
+
+        self._entry(basics, "device_name_regex", "Device name regex", 0, 42)
+        self._entry(basics, "min_fingers", "Minimum fingers", 1)
+        self._entry(basics, "log_level", "Log level", 2)
+        self._check(basics, "dry_run", "Dry run: detect gestures but do not run commands", 3)
+
+        self._entry(tuning, "threshold_x", "Swipe threshold X", 0)
+        self._entry(tuning, "threshold_y", "Swipe threshold Y", 1)
+        self._entry(tuning, "diagonal_bias", "Diagonal bias", 2)
+        self._entry(tuning, "cooldown_ms", "Cooldown ms", 3)
+        self._entry(tuning, "min_duration_ms", "Minimum duration ms", 4)
+        self._entry(tuning, "max_duration_ms", "Maximum duration ms", 5)
+
+        self._check(inversion, "invert_x", "Invert physical X axis before action lookup", 0)
+        self._check(inversion, "invert_y", "Invert physical Y axis before action lookup", 1)
+        ttk.Label(
+            inversion,
+            text=(
+                "Tip: for normal day-to-day direction changes, prefer the direction buttons in Setup Flow. "
+                "Physical axis inversion changes how raw device movement is interpreted."
+            ),
+            wraplength=860,
+            justify="left",
+        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+    def _build_actions(self, parent):
+        ttk = self.ttk
+        parent.columnconfigure(2, weight=1)
         actions = self.config.get("actions", {})
         enabled = self.config.get("enabled", {})
         labels = [
@@ -174,38 +363,70 @@ class Panel:
         ]
         self.vars["actions"] = {}
         self.vars["enabled"] = {}
-        for row, (name, label) in enumerate(labels):
-            self.ttk.Label(f, text=label).grid(row=row, column=0, sticky="w", pady=5)
+        ttk.Label(parent, text="Enable").grid(row=0, column=1, sticky="w", padx=4)
+        ttk.Label(parent, text="Command").grid(row=0, column=2, sticky="w", padx=4)
+        for row, (name, label) in enumerate(labels, start=1):
+            ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=5)
             ev = self.tk.BooleanVar(value=bool(enabled.get(name, True)))
             self.vars["enabled"][name] = ev
-            self.ttk.Checkbutton(f, variable=ev).grid(row=row, column=1, sticky="w")
+            ttk.Checkbutton(parent, variable=ev).grid(row=row, column=1, sticky="w")
             cv = self.tk.StringVar(value=str(actions.get(name, DEFAULT_CONFIG["actions"].get(name, ""))))
             self.vars["actions"][name] = cv
-            self.ttk.Entry(f, textvariable=cv, width=54).grid(row=row, column=2, sticky="ew", pady=5)
-            self.ttk.Button(f, text="Test", command=lambda n=name: self.test_action(n)).grid(row=row, column=3, padx=6)
+            ttk.Entry(parent, textvariable=cv, width=64).grid(row=row, column=2, sticky="ew", pady=5)
+            ttk.Button(parent, text="Test", command=lambda n=name: self.test_action(n)).grid(row=row, column=3, padx=6)
 
-        tips = "Örnekler: magic-mouse-ws down | magic-mouse-ws up | magic-mouse-ws overview | xdg-open https://example.com"
-        self.ttk.Label(f, text=tips, wraplength=680).grid(row=5, column=0, columnspan=4, sticky="w", pady=12)
-
-    def _build_service(self):
-        f = self.service
+        buttons = ttk.Frame(parent)
+        buttons.grid(row=6, column=0, columnspan=4, sticky="ew", pady=(12, 0))
         for i in range(4):
-            f.columnconfigure(i, weight=1)
+            buttons.columnconfigure(i, weight=1)
+        ttk.Button(buttons, text="Apply Stable Default", command=self.apply_stable_default).grid(row=0, column=0, sticky="ew", padx=4)
+        ttk.Button(buttons, text="Normal Workspace Direction", command=self.normal_workspace_direction).grid(row=0, column=1, sticky="ew", padx=4)
+        ttk.Button(buttons, text="Invert Workspace Direction", command=self.invert_workspace_direction).grid(row=0, column=2, sticky="ew", padx=4)
+        ttk.Button(buttons, text="Disable Workspace Gestures", command=self.disable_workspace_gestures).grid(row=0, column=3, sticky="ew", padx=4)
+
+        tips = (
+            "Examples: magic-mouse-ws down | magic-mouse-ws up | magic-mouse-ws left | "
+            "xdg-open https://example.com"
+        )
+        ttk.Label(parent, text=tips, wraplength=860).grid(row=7, column=0, columnspan=4, sticky="w", pady=12)
+
+    def _build_service(self, parent):
+        ttk = self.ttk
+        for i in range(4):
+            parent.columnconfigure(i, weight=1)
         cmds = [
-            ("Başlat", "systemctl --user start magic-mouse-gestures.service"),
-            ("Durdur", "systemctl --user stop magic-mouse-gestures.service"),
+            ("Start", "systemctl --user start magic-mouse-gestures.service"),
+            ("Stop", "systemctl --user stop magic-mouse-gestures.service"),
             ("Restart", "systemctl --user restart magic-mouse-gestures.service"),
             ("Status", "systemctl --user status magic-mouse-gestures.service --no-pager"),
-            ("GNOME ping", "magic-mouse-ws ping"),
-            ("Cihazları listele", "magic-mouse-gesture-daemon --list-devices"),
-            ("Son loglar", "journalctl --user -u magic-mouse-gestures.service -n 80 --no-pager"),
-            ("Tanı zip oluştur", "magic-mouse-diagnose"),
+            ("GNOME Ping", "magic-mouse-ws ping"),
+            ("Workspace Status", "magic-mouse-ws status"),
+            ("List Devices", "magic-mouse-gesture-daemon --list-devices"),
+            ("Recent Logs", "journalctl --user -u magic-mouse-gestures.service -n 100 --no-pager"),
+            ("Create Diagnostic Bundle", "magic-mouse-diagnose"),
         ]
         for idx, (label, cmd) in enumerate(cmds):
-            self.ttk.Button(f, text=label, command=lambda c=cmd: self.run_show(c)).grid(row=idx // 4, column=idx % 4, sticky="ew", padx=4, pady=4)
-        self.output = self.tk.Text(f, height=22, wrap="word")
+            ttk.Button(parent, text=label, command=lambda c=cmd: self.run_show(c, timeout=25)).grid(
+                row=idx // 4, column=idx % 4, sticky="ew", padx=4, pady=4
+            )
+        self.output = self.tk.Text(parent, height=24, wrap="word")
         self.output.grid(row=3, column=0, columnspan=4, sticky="nsew", pady=10)
-        f.rowconfigure(3, weight=1)
+        parent.rowconfigure(3, weight=1)
+
+    def _entry(self, parent, key, label, row, width=32):
+        ttk = self.ttk
+        v = self.tk.StringVar(value=str(self.config.get(key, DEFAULT_CONFIG.get(key, ""))))
+        self.vars[key] = v
+        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=4)
+        ttk.Entry(parent, textvariable=v, width=width).grid(row=row, column=1, sticky="ew", pady=4)
+        return v
+
+    def _check(self, parent, key, label, row):
+        ttk = self.ttk
+        v = self.tk.BooleanVar(value=bool(self.config.get(key, DEFAULT_CONFIG.get(key, False))))
+        self.vars[key] = v
+        ttk.Checkbutton(parent, text=label, variable=v).grid(row=row, column=0, columnspan=2, sticky="w", pady=4)
+        return v
 
     def _collect(self):
         c = dict(self.config)
@@ -216,25 +437,129 @@ class Panel:
                 c[key] = int(float(self.vars[key].get()))
             except ValueError:
                 c[key] = DEFAULT_CONFIG[key]
-        for key in ["diagonal_bias"]:
-            try:
-                c[key] = float(self.vars[key].get())
-            except ValueError:
-                c[key] = DEFAULT_CONFIG[key]
+        try:
+            c["diagonal_bias"] = float(self.vars["diagonal_bias"].get())
+        except ValueError:
+            c["diagonal_bias"] = DEFAULT_CONFIG["diagonal_bias"]
         for key in ["invert_x", "invert_y", "dry_run"]:
             c[key] = bool(self.vars[key].get())
         c["actions"] = {k: v.get() for k, v in self.vars["actions"].items()}
         c["enabled"] = {k: bool(v.get()) for k, v in self.vars["enabled"].items()}
         return c
 
+    def _push_config_to_ui(self, config):
+        self.config = deep_merge(DEFAULT_CONFIG, config)
+        for key, var in self.vars.items():
+            if key in {"actions", "enabled"}:
+                continue
+            if key in self.config and hasattr(var, "set"):
+                var.set(self.config[key])
+        for name, var in self.vars.get("actions", {}).items():
+            var.set(self.config.get("actions", {}).get(name, DEFAULT_CONFIG["actions"].get(name, "")))
+        for name, var in self.vars.get("enabled", {}).items():
+            var.set(bool(self.config.get("enabled", {}).get(name, True)))
+        self.refresh_status()
+
+    def reload(self):
+        self._push_config_to_ui(load_config())
+        self.run_show(f"echo 'Reloaded: {CONFIG_PATH}'", timeout=3)
+
+    def load_defaults(self):
+        self._push_config_to_ui(dict(DEFAULT_CONFIG))
+        self.run_show("echo 'Loaded defaults in the panel. Click Apply or Apply & Restart to save.'", timeout=3)
+
     def save(self):
         self.config = self._collect()
         save_config(self.config)
-        self.run_show(f"echo 'Kaydedildi: {CONFIG_PATH}'", timeout=3)
+        self.refresh_status()
+        self.run_show(f"echo 'Saved: {CONFIG_PATH}'", timeout=3)
 
     def save_restart(self):
         self.save()
-        self.run_show("systemctl --user restart magic-mouse-gestures.service && systemctl --user status magic-mouse-gestures.service --no-pager")
+        self.restart_service()
+
+    def restart_service(self):
+        self.run_show("systemctl --user restart magic-mouse-gestures.service && systemctl --user status magic-mouse-gestures.service --no-pager", timeout=25)
+
+    def refresh_status(self):
+        rc, out = run_cmd("magic-mouse-ws ping", timeout=4)
+        backend = "GNOME workspace backend: ready" if rc == 0 else "GNOME workspace backend: not ready"
+        svc_rc, _svc_out = run_cmd("systemctl --user is-active magic-mouse-gestures.service", timeout=4)
+        service = "service: active" if svc_rc == 0 else "service: inactive"
+        self.status_var.set(f"{backend} / {service}")
+
+    def apply_sensitivity(self, name):
+        c = self._collect()
+        c.update(SENSITIVITY_PRESETS[name])
+        self._push_config_to_ui(c)
+        self.run_show(f"echo 'Applied {name} sensitivity. Click Apply & Restart to activate.'", timeout=3)
+
+    def apply_stable_default(self):
+        c = self._collect()
+        c.update({
+            "min_fingers": DEFAULT_CONFIG["min_fingers"],
+            "threshold_x": DEFAULT_CONFIG["threshold_x"],
+            "threshold_y": DEFAULT_CONFIG["threshold_y"],
+            "diagonal_bias": DEFAULT_CONFIG["diagonal_bias"],
+            "cooldown_ms": DEFAULT_CONFIG["cooldown_ms"],
+            "invert_x": False,
+            "invert_y": False,
+        })
+        c["actions"].update(WORKSPACE_NORMAL)
+        c["actions"].update(HORIZONTAL_NORMAL)
+        for key in ["swipe_up", "swipe_down", "swipe_left", "swipe_right"]:
+            c["enabled"][key] = True
+        self._push_config_to_ui(c)
+        self.run_show("echo 'Applied stable GNOME defaults. Click Apply & Restart to activate.'", timeout=3)
+
+    def normal_workspace_direction(self):
+        c = self._collect()
+        c["actions"].update(WORKSPACE_NORMAL)
+        c["enabled"]["swipe_up"] = True
+        c["enabled"]["swipe_down"] = True
+        self._push_config_to_ui(c)
+        self.run_show("echo 'Normal workspace direction: swipe up -> previous/up, swipe down -> next/down.'", timeout=3)
+
+    def invert_workspace_direction(self):
+        c = self._collect()
+        c["actions"].update(WORKSPACE_INVERTED)
+        c["enabled"]["swipe_up"] = True
+        c["enabled"]["swipe_down"] = True
+        self._push_config_to_ui(c)
+        self.run_show("echo 'Inverted workspace direction: swipe up -> next/down, swipe down -> previous/up.'", timeout=3)
+
+    def normal_horizontal_direction(self):
+        c = self._collect()
+        c["actions"].update(HORIZONTAL_NORMAL)
+        c["enabled"]["swipe_left"] = True
+        c["enabled"]["swipe_right"] = True
+        self._push_config_to_ui(c)
+        self.run_show("echo 'Normal horizontal direction: left -> left workspace, right -> right workspace.'", timeout=3)
+
+    def invert_horizontal_direction(self):
+        c = self._collect()
+        c["actions"].update(HORIZONTAL_INVERTED)
+        c["enabled"]["swipe_left"] = True
+        c["enabled"]["swipe_right"] = True
+        self._push_config_to_ui(c)
+        self.run_show("echo 'Inverted horizontal direction: left -> right workspace, right -> left workspace.'", timeout=3)
+
+    def disable_workspace_gestures(self):
+        c = self._collect()
+        for key in ["swipe_up", "swipe_down", "swipe_left", "swipe_right"]:
+            c["enabled"][key] = False
+        self._push_config_to_ui(c)
+        self.run_show("echo 'Disabled all workspace gestures. Click Apply & Restart to activate.'", timeout=3)
+
+    def apply_axis_inversion(self, invert_x, invert_y):
+        c = self._collect()
+        c["invert_x"] = bool(invert_x)
+        c["invert_y"] = bool(invert_y)
+        self._push_config_to_ui(c)
+        self.run_show(
+            f"echo 'Physical axis inversion set: invert_x={bool(invert_x)} invert_y={bool(invert_y)}. Click Apply & Restart to activate.'",
+            timeout=3,
+        )
 
     def test_action(self, name):
         cmd = self.vars["actions"][name].get()
@@ -242,6 +567,8 @@ class Panel:
 
     def run_show(self, cmd, timeout=12):
         rc, out = run_cmd(cmd, timeout=timeout)
+        if not hasattr(self, "output"):
+            return
         self.output.delete("1.0", "end")
         self.output.insert("end", f"$ {cmd}\n# exit={rc}\n\n{out}\n")
 
@@ -250,9 +577,9 @@ def launch_gui():
     try:
         import tkinter as tk
     except Exception as exc:
-        print("python3-tk yok. Kur:", file=sys.stderr)
+        print("python3-tk is missing. Install it with:", file=sys.stderr)
         print("  sudo apt install -y python3-tk", file=sys.stderr)
-        print(f"Hata: {exc}", file=sys.stderr)
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
     try:
         root = tk.Tk(className="MagicMouseControlPanel")
@@ -260,11 +587,11 @@ def launch_gui():
         root.mainloop()
         return 0
     except tk.TclError as exc:
-        print("Grafik ekrana bağlanamadım.", file=sys.stderr)
+        print("Could not connect to the graphical display.", file=sys.stderr)
         print(f"DISPLAY={os.environ.get('DISPLAY', 'unset')} WAYLAND_DISPLAY={os.environ.get('WAYLAND_DISPLAY', 'unset')}", file=sys.stderr)
-        print("Paneli masaüstü oturumundaki normal kullanıcıdan çalıştır:", file=sys.stderr)
+        print("Run the panel from your normal desktop session:", file=sys.stderr)
         print("  magic-mouse-control-panel", file=sys.stderr)
-        print("SSH/sudo içindeysen GUI açılmaz; CLI için:", file=sys.stderr)
+        print("For CLI output:", file=sys.stderr)
         print("  magic-mouse-control-panel --print-config", file=sys.stderr)
         print(f"TclError: {exc}", file=sys.stderr)
         return 1
