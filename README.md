@@ -9,7 +9,9 @@ Desktop-specific Apple Magic Mouse gesture packages for Linux.
 | `cosmic-wayland/` | `1.4.3` | Pop!_OS COSMIC / COSMIC Wayland | Stable Magic Mouse gesture setup with GUI control panel and COSMIC workspace helper |
 | `gnome-ubuntu/` | `0.1.2` | Ubuntu GNOME / GNOME Wayland | GNOME workspace bridge package with Shell extension and DBus helper |
 
-## Quick install from GitHub
+## Pop!_OS COSMIC / COSMIC Wayland
+
+### Quick install from GitHub
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/quick-install.sh)"
@@ -21,7 +23,7 @@ Alternative with `wget`:
 bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/quick-install.sh)"
 ```
 
-Manual clone install:
+### Manual clone install
 
 ```bash
 git clone https://github.com/Tihulu/magic-mouse.git
