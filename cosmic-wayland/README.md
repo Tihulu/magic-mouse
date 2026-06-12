@@ -2,7 +2,7 @@
 
 Apple Magic Mouse gesture setup, workspace switching, and GUI control panel for **Pop!_OS / COSMIC Wayland**.
 
-This folder contains the current stable COSMIC Wayland package: **v1.4.5**.
+This folder contains the current stable COSMIC Wayland package: **v1.4.6**.
 
 The package avoids unreliable synthetic workspace keyboard shortcuts and uses a stateful `cosmic-ws` helper powered by `cos-cli` for COSMIC workspace switching.
 
@@ -18,7 +18,7 @@ Alternative with `wget`:
 bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/quick-install.sh)"
 ```
 
-The quick installer applies the **v1.4.5 fast startup patch** and the COSMIC dock icon fix after installation.
+The quick installer applies the **v1.4.6 non-blocking scroll patch**, the fast startup patch, and the COSMIC dock icon fix after installation.
 
 ## Manual install
 
@@ -51,7 +51,8 @@ Default source path used by this package:
 - user systemd service integration for the Magic Mouse gesture daemon
 - local udev rule and immediate ACL repair for Apple Magic Mouse HID raw access
 - Magic Mouse-style launcher icon
-- v1.4.5 fast startup patch for the Tk control panel
+- v1.4.6 non-blocking natural/traditional scroll buttons
+- fast startup patch for the Tk control panel
 - dock icon matching fix for COSMIC
 
 ## Expected behavior
@@ -107,10 +108,10 @@ Or run the steps manually:
 
 Natural scrolling is a native COSMIC/libinput setting. Some COSMIC builds may ignore mouse natural scrolling at runtime. Desktop/workspace direction should be fixed in Step 6 with command swapping.
 
-The control panel window now appears first; service, HID, and scroll status checks load in the background.
+The control panel window now stays responsive while natural/traditional scroll changes run in the background.
 
 ## Version
 
 ```text
-1.4.5
+1.4.6
 ```
