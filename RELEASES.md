@@ -1,13 +1,16 @@
 # Releases
 
-## cosmic-wayland v1.1.0
+## cosmic-wayland v1.4.3 stable
 
-- COSMIC profile for Pop!_OS/COSMIC Wayland.
-- Two-finger swipe workspace navigation.
-- Browser back/forward gestures.
-- HID backend selection and udev helper.
-- Graphical control panel.
-- Basic gesture engine tests.
+- Stable Magic Mouse setup for Pop!_OS / COSMIC Wayland.
+- Graphical control panel and terminal fallback.
+- Stateful COSMIC workspace switching through `cosmic-ws` and `cos-cli`.
+- HID permission repair with local udev rule and immediate ACL repair.
+- Scrollable GUI layout for smaller windows.
+- Desktop and browser direction controls.
+- Safer Tk display fallback.
+- Reset backups under `~/Documents/magicmouse-backups/`.
+- Magic Mouse-style launcher icon.
 
 ## gnome-ubuntu v0.1.2
 
