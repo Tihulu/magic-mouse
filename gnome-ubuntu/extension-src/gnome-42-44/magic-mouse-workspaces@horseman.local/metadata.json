@@ -1,0 +1,7 @@
+{
+  "uuid": "magic-mouse-workspaces@horseman.local",
+  "name": "Magic Mouse Workspaces",
+  "description": "Private DBus workspace switching API for Magic Mouse gestures on GNOME Shell.",
+  "shell-version": ["42", "43", "44"],
+  "version": 2
+}

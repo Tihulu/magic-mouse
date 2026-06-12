@@ -1,0 +1,13 @@
+[project]
+name = "magic-mouse-linux-gestures"
+version = "1.1.0"
+description = "Magic Mouse gesture support for Linux desktops: COSMIC and GNOME/Ubuntu profiles."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Magic Mouse Linux Gestures contributors" }]
+dependencies = ["hidapi>=0.14"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

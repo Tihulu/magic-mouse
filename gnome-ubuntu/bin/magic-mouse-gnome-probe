@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+has() { command -v "$1" >/dev/null 2>&1; }
+UUID="magic-mouse-workspaces@horseman.local"
+EXT_DIR="$HOME/.local/share/gnome-shell/extensions/$UUID"
+
+echo "== Session =="
+echo "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unset}"
+echo "XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-unset}"
+echo "DESKTOP_SESSION=${DESKTOP_SESSION:-unset}"
+echo "GNOME_DESKTOP_SESSION_ID=${GNOME_DESKTOP_SESSION_ID:-unset}"
+if has gnome-shell; then gnome-shell --version || true; else echo "missing: gnome-shell"; fi
+
+echo
+echo "== Binaries =="
+for b in gdbus gnome-extensions xdotool wtype ydotool systemctl jq; do
+  if has "$b"; then command -v "$b"; else echo "missing: $b"; fi
+done
+
+echo
+echo "== Extension files =="
+if [[ -d "$EXT_DIR" ]]; then
+  echo "$EXT_DIR"
+  sed -n '1,80p' "$EXT_DIR/metadata.json" 2>/dev/null || true
+else
+  echo "extension directory not found: $EXT_DIR"
+fi
+
+echo
+echo "== Extension state =="
+if has gnome-extensions; then
+  gnome-extensions info "$UUID" 2>/dev/null || echo "extension not installed/enabled/visible yet"
+  echo
+  echo "Enabled list match:"
+  gnome-extensions list --enabled 2>/dev/null | grep -F "$UUID" || true
+else
+  echo "gnome-extensions missing"
+fi
+
+echo
+echo "== Backend ping =="
+if has magic-mouse-ws; then
+  magic-mouse-ws ping || true
+  magic-mouse-ws status || true
+else
+  echo "magic-mouse-ws not on PATH"
+fi
+
+echo
+echo "== GNOME Shell Eval smoke test =="
+if has gdbus; then
+  gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval "true" 2>&1 || true
+else
+  echo "gdbus missing"
+fi
+
+echo
+echo "== Service hint =="
+if systemctl --user list-unit-files magic-mouse-gestures.service >/dev/null 2>&1; then
+  systemctl --user status magic-mouse-gestures.service --no-pager -n 20 || true
+else
+  echo "magic-mouse-gestures.service not found as a user unit"
+fi

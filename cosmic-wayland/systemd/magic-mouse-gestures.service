@@ -1,0 +1,16 @@
+[Unit]
+Description=Magic Mouse Linux Gestures
+Documentation=https://github.com/yourname/magic-mouse-linux-gestures
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/magic-mouse-gestures/profile.env
+PassEnvironment=DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
+ExecStart=%h/.local/share/magic-mouse-linux-gestures/.venv/bin/python %h/.local/share/magic-mouse-linux-gestures/src/magic_mouse_daemon.py --profile %h/.config/magic-mouse-gestures/profile.env --wait-device
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

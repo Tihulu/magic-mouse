@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'HELP'
+Usage:
+  magic-mouse-gnome-integrate systemd-env
+  magic-mouse-gnome-integrate install-cosmic-ws-shim
+  magic-mouse-gnome-integrate remove-cosmic-ws-shim
+
+systemd-env:
+  Adds a user-service drop-in setting MAGIC_MOUSE_WS_CMD=$HOME/.local/bin/magic-mouse-ws.
+  This only helps daemons that read MAGIC_MOUSE_WS_CMD.
+
+install-cosmic-ws-shim:
+  Installs ~/.local/bin/cosmic-ws as a compatibility wrapper that delegates to magic-mouse-ws.
+  This is useful when an older gesture daemon still calls cosmic-ws.
+HELP
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  systemd-env)
+    dir="$HOME/.config/systemd/user/magic-mouse-gestures.service.d"
+    mkdir -p "$dir"
+    cat > "$dir/10-gnome-workspaces.conf" <<DROPIN
+[Service]
+Environment=MAGIC_MOUSE_WS_CMD=$HOME/.local/bin/magic-mouse-ws
+DROPIN
+    systemctl --user daemon-reload || true
+    systemctl --user restart magic-mouse-gestures.service || true
+    echo "Installed systemd user drop-in: $dir/10-gnome-workspaces.conf"
+    ;;
+  install-cosmic-ws-shim)
+    mkdir -p "$HOME/.local/bin"
+    target="$HOME/.local/bin/cosmic-ws"
+    if [[ -e "$target" && ! -L "$target" ]]; then
+      cp -a "$target" "$target.backup.$(date +%Y%m%d%H%M%S)"
+    fi
+    cat > "$target" <<'SHIM'
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$HOME/.local/bin/magic-mouse-ws" "$@"
+SHIM
+    chmod +x "$target"
+    echo "Installed compatibility shim: $target -> magic-mouse-ws"
+    ;;
+  remove-cosmic-ws-shim)
+    target="$HOME/.local/bin/cosmic-ws"
+    if [[ -f "$target" ]] && grep -q 'magic-mouse-ws' "$target"; then
+      rm -f "$target"
+      echo "Removed compatibility shim: $target"
+    else
+      echo "No Magic Mouse cosmic-ws shim found at $target"
+    fi
+    ;;
+  -h|--help|"") usage ;;
+  *) echo "unknown command: $cmd" >&2; usage; exit 2 ;;
+esac

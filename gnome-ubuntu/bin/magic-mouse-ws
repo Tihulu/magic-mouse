@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'HELP'
+Usage:
+  magic-mouse-ws up|down|left|right|next|prev
+  magic-mouse-ws 1|2|3|...|12
+  magic-mouse-ws ping|status
+
+GNOME/Ubuntu backend for Magic Mouse workspace gestures.
+Preferred backend: GNOME Shell extension exposing org.magicmouse.Workspaces over DBus.
+Fallback backends: org.gnome.Shell.Eval, then X11 xdotool for X11 sessions.
+HELP
+}
+
+has() { command -v "$1" >/dev/null 2>&1; }
+need_gdbus() { has gdbus || { echo "missing: gdbus (install libglib2.0-bin)" >&2; return 127; }; }
+
+normalize_direction() {
+  case "${1:-}" in
+    down|right|next) printf '%s\n' "next" ;;
+    up|left|prev|previous) printf '%s\n' "prev" ;;
+    motion-up|motion-down|motion-left|motion-right) printf '%s\n' "$1" ;;
+    *) return 2 ;;
+  esac
+}
+
+call_extension_switch() {
+  local dir="$1"
+  need_gdbus || return $?
+  gdbus call --session \
+    --dest org.magicmouse.Workspaces \
+    --object-path /org/magicmouse/Workspaces \
+    --method org.magicmouse.Workspaces.Switch "$dir" >/dev/null
+}
+
+call_extension_switch_to() {
+  local index="$1"
+  need_gdbus || return $?
+  gdbus call --session \
+    --dest org.magicmouse.Workspaces \
+    --object-path /org/magicmouse/Workspaces \
+    --method org.magicmouse.Workspaces.SwitchTo "${index}" >/dev/null
+}
+
+call_extension_ping() {
+  need_gdbus || return $?
+  gdbus call --session \
+    --dest org.magicmouse.Workspaces \
+    --object-path /org/magicmouse/Workspaces \
+    --method org.magicmouse.Workspaces.Ping 2>/dev/null | grep -Eq '^\(true,?\)$|^\(true,.*\)'
+}
+
+call_extension_status() {
+  need_gdbus || return $?
+  gdbus call --session \
+    --dest org.magicmouse.Workspaces \
+    --object-path /org/magicmouse/Workspaces \
+    --method org.magicmouse.Workspaces.Status 2>/dev/null || return $?
+}
+
+call_eval_relative() {
+  local dir="$1" delta js out
+  case "$dir" in
+    down|right|next) delta=1 ;;
+    up|left|prev|previous) delta=-1 ;;
+    *) return 2 ;;
+  esac
+  need_gdbus || return $?
+  js="let m=global.workspace_manager; let i=m.get_active_workspace_index()+(${delta}); i=Math.max(0, Math.min(m.n_workspaces-1, i)); m.get_workspace_by_index(i).activate(global.get_current_time());"
+  out=$(gdbus call --session \
+    --dest org.gnome.Shell \
+    --object-path /org/gnome/Shell \
+    --method org.gnome.Shell.Eval "$js" 2>/dev/null || true)
+  [[ "$out" == "(true,"* || "$out" == "(true,"* || "$out" == "(true, '')"* ]]
+}
+
+call_eval_index() {
+  local index="$1" zero js out
+  zero=$((index - 1))
+  need_gdbus || return $?
+  js="let m=global.workspace_manager; let i=Math.max(0, Math.min(m.n_workspaces-1, ${zero})); m.get_workspace_by_index(i).activate(global.get_current_time());"
+  out=$(gdbus call --session \
+    --dest org.gnome.Shell \
+    --object-path /org/gnome/Shell \
+    --method org.gnome.Shell.Eval "$js" 2>/dev/null || true)
+  [[ "$out" == "(true,"* || "$out" == "(true,"* || "$out" == "(true, '')"* ]]
+}
+
+call_eval_status() {
+  local js out
+  need_gdbus || return $?
+  js="let m=global.workspace_manager; JSON.stringify({backend:'gnome-shell-eval', active:m.get_active_workspace_index()+1, count:m.n_workspaces});"
+  out=$(gdbus call --session \
+    --dest org.gnome.Shell \
+    --object-path /org/gnome/Shell \
+    --method org.gnome.Shell.Eval "$js" 2>/dev/null || true)
+  [[ "$out" == "(true,"* ]] || return 1
+  printf '%s\n' "$out"
+}
+
+call_x11_relative() {
+  local dir="$1" key
+  has xdotool || return 2
+  case "$dir" in
+    down|right|next) key="ctrl+alt+Down" ;;
+    up|left|prev|previous) key="ctrl+alt+Up" ;;
+    *) return 2 ;;
+  esac
+  xdotool key "$key"
+}
+
+arg="${1:-}"
+[[ -n "$arg" ]] || { usage; exit 2; }
+
+case "$arg" in
+  -h|--help) usage; exit 0 ;;
+  ping)
+    if call_extension_ping; then
+      echo "ok: gnome-extension"
+      exit 0
+    fi
+    if has gdbus && gdbus call --session --dest org.gnome.Shell --object-path /org/gnome/Shell --method org.gnome.Shell.Eval "true" 2>/dev/null | grep -q "^(true,"; then
+      echo "ok: gnome-shell-eval"
+      exit 0
+    fi
+    echo "not-ready: enable the GNOME extension, then log out/in on Wayland" >&2
+    exit 1
+    ;;
+  status)
+    if call_extension_status; then exit 0; fi
+    if call_eval_status; then exit 0; fi
+    echo "not-ready: no GNOME workspace backend responded" >&2
+    exit 1
+    ;;
+  [0-9]|[1-9][0-9])
+    if call_extension_switch_to "$arg" 2>/dev/null; then exit 0; fi
+    if call_eval_index "$arg"; then exit 0; fi
+    echo "failed: cannot switch to workspace $arg; run magic-mouse-gnome-probe" >&2
+    exit 1
+    ;;
+  *)
+    normalized=$(normalize_direction "$arg") || { echo "unknown direction: $arg" >&2; usage; exit 2; }
+    if call_extension_switch "$normalized" 2>/dev/null; then exit 0; fi
+    if call_eval_relative "$normalized"; then exit 0; fi
+    if [[ "${XDG_SESSION_TYPE:-}" == "x11" ]] && call_x11_relative "$normalized"; then exit 0; fi
+    echo "failed: cannot switch workspace '$arg'. Run: magic-mouse-gnome-probe" >&2
+    exit 1
+    ;;
+esac
