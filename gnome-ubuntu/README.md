@@ -1,12 +1,12 @@
-# Magic Mouse GNOME/Ubuntu workspace backend 0.1.1
+# Magic Mouse GNOME/Ubuntu workspace backend 0.1.2
 
 This package is a GNOME/Ubuntu backend for Magic Mouse workspace gestures. It replaces COSMIC-specific workspace switching with `magic-mouse-ws`.
 
-## What changed in 0.1.1
+## What changed in 0.1.2
 
 - Adds two GNOME Shell extension variants:
   - GNOME 42-44 legacy `imports.*` extension for Ubuntu 22.04-era desktops.
-  - GNOME 45-49 ESM extension for Ubuntu 24.04+ and newer GNOME desktops.
+  - GNOME 45-50 ESM extension for Ubuntu 24.04 through Ubuntu 26.04-era desktops.
 - `install.sh` detects the installed GNOME Shell major version and installs the correct variant.
 - Adds `magic-mouse-ws status` for active workspace/count debugging.
 - Adds `magic-mouse-gnome-integrate install-cosmic-ws-shim` for old daemons that still call `cosmic-ws`.
@@ -15,8 +15,8 @@ This package is a GNOME/Ubuntu backend for Magic Mouse workspace gestures. It re
 ## Install
 
 ```bash
-unzip magic-mouse-gnome-ubuntu-0.1.1.zip
-cd magic-mouse-gnome-ubuntu-0.1.1
+unzip magic-mouse-gnome-ubuntu-0.1.2.zip
+cd magic-mouse-gnome-ubuntu-0.1.2
 ./install.sh
 ```
 
