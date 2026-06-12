@@ -1,4 +1,4 @@
-# Magic Mouse GNOME package 0.2.0
+# Magic Mouse GNOME package 0.2.1
 
 Full Magic Mouse gesture package for Ubuntu GNOME, Pop!_OS GNOME, and other GNOME Shell desktops.
 
@@ -11,6 +11,25 @@ This is no longer only a workspace bridge. It includes:
 - user `systemd` service
 - udev permission rule
 - diagnostics and service helpers
+
+## What changed in 0.2.1
+
+- Reworked the GNOME control panel UI to match the COSMIC panel more closely.
+- Converted the remaining Turkish UI text to English.
+- Added quick direction buttons:
+  - `Apply Stable Default`
+  - `Normal Workspace Direction`
+  - `Invert Workspace Direction`
+  - `Normal Horizontal Direction`
+  - `Invert Horizontal Direction`
+  - `Disable Workspace Gestures`
+- Added physical axis inversion buttons:
+  - `Normal Physical Axes`
+  - `Invert X Axis`
+  - `Invert Y Axis`
+  - `Invert Both Axes`
+
+Use the workspace/horizontal direction buttons first when the direction feels wrong. Use physical axis inversion only when the raw detected swipe direction itself is reversed.
 
 ## Supported GNOME Shell ranges
 
@@ -72,7 +91,7 @@ Expected default behavior:
 magic-mouse-control-panel
 ```
 
-Use the panel to tune thresholds, invert directions, enable or disable gestures, and restart the service.
+The first tab is `Setup Flow`, with quick buttons for status, service restart, sensitivity presets, workspace direction, horizontal direction, physical axis inversion, and direct workspace tests.
 
 Do not run the panel with `sudo`; it needs the logged-in desktop display session.
 
