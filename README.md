@@ -1,36 +1,48 @@
 # Magic Mouse Linux
 
-Two desktop-specific Magic Mouse gesture implementations for Linux.
+Desktop-specific Apple Magic Mouse gesture packages for Linux.
 
-## Folders
+## Packages
 
 | Folder | Version | Target desktop | Status |
 |---|---:|---|---|
-| `cosmic-wayland/` | `1.1.0` | Pop!_OS COSMIC / COSMIC Wayland | Working COSMIC gesture daemon with control panel |
-| `gnome-ubuntu/` | `0.1.2` | Ubuntu GNOME / GNOME Wayland | GNOME workspace bridge package with Shell extension + DBus helper |
+| `cosmic-wayland/` | `1.4.3` | Pop!_OS COSMIC / COSMIC Wayland | Stable Magic Mouse gesture setup with GUI control panel and COSMIC workspace helper |
+| `gnome-ubuntu/` | `0.1.2` | Ubuntu GNOME / GNOME Wayland | GNOME workspace bridge package with Shell extension and DBus helper |
 
-## COSMIC / Wayland
+## COSMIC Wayland quick install
+
+Use this for Pop!_OS / COSMIC Wayland:
 
 ```bash
-cd cosmic-wayland
-./install.sh --profile cosmic --udev --start
+git clone https://github.com/Tihulu/magic-mouse.git
+cd magic-mouse/cosmic-wayland
+chmod +x *.sh
+./reset.sh
+./install.sh
 ```
 
-Useful commands:
+Launch the graphical control panel:
 
 ```bash
-journalctl --user -u magic-mouse-gestures.service -f
 magic-mouse-control-panel
 ```
 
-Default gestures:
+CLI fallback:
+
+```bash
+magic-mouse-control-panel-cli
+```
+
+Default COSMIC gestures:
 
 | Gesture | Action |
 |---|---|
 | Two-finger swipe left | Browser back |
 | Two-finger swipe right | Browser forward |
-| Two-finger swipe up | Previous/up workspace |
-| Two-finger swipe down | Next/down workspace |
+| Two-finger swipe up | Workspace up |
+| Two-finger swipe down | Workspace down |
+
+The COSMIC package uses a stateful `cosmic-ws` helper powered by `cos-cli`, because synthetic workspace keyboard shortcuts are unreliable on COSMIC Wayland.
 
 ## GNOME / Ubuntu
 
@@ -59,6 +71,6 @@ systemctl --user restart magic-mouse-gestures.service
 ## Notes
 
 - COSMIC and GNOME use different workspace mechanisms, so they are kept in separate folders.
-- COSMIC uses the Python HID gesture daemon and Wayland key sending.
-- GNOME uses a Shell extension/DBus bridge because direct workspace control from outside GNOME Shell is restricted on modern GNOME Wayland sessions.
+- COSMIC uses direct Magic Mouse HID input plus `cos-cli` workspace activation.
+- GNOME uses a Shell extension / DBus bridge because direct workspace control from outside GNOME Shell is restricted on modern GNOME Wayland sessions.
 - GNOME/Ubuntu 0.1.2 supports the GNOME 45+ extension variant through GNOME Shell 50 metadata.
