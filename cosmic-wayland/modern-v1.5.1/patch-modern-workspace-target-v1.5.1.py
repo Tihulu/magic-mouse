@@ -17,9 +17,9 @@ def patch(path: Path) -> None:
     text = text.replace(
         'self.preset=tk.StringVar(value="Tihulu"); self.cx=tk.StringVar(value="550"); self.cy=tk.StringVar(value="480"); self.cc=tk.StringVar(value="550"); self.ca=tk.StringVar(value="1.35")',
         'self.preset=tk.StringVar(value="Tihulu"); self.cx=tk.StringVar(value="550"); self.cy=tk.StringVar(value="480"); self.cc=tk.StringVar(value="550"); self.ca=tk.StringVar(value="1.35")\n'
-        '   self.ws_target_values={"Auto (stable / active window)":"auto","Screen 1 only":"screen1","Screen 2 only":"screen2","Both screens":"all"}\n'
-        '   cur_target=read_profile().get("WORKSPACE_TARGET","auto")\n'
-        '   self.ws_target=tk.StringVar(value=next((k for k,v in self.ws_target_values.items() if v==cur_target),"Auto (stable / active window)"))',
+        '  self.ws_target_values={"Auto (stable / active window)":"auto","Screen 1 only":"screen1","Screen 2 only":"screen2","Both screens":"all"}\n'
+        '  cur_target=read_profile().get("WORKSPACE_TARGET","auto")\n'
+        '  self.ws_target=tk.StringVar(value=next((k for k,v in self.ws_target_values.items() if v==cur_target),"Auto (stable / active window)"))',
         1,
     )
 
@@ -32,12 +32,12 @@ def patch(path: Path) -> None:
     old_plain = 'test=self.card(right,"Workspace test",1,0); test.columnconfigure(0,weight=1); test.columnconfigure(1,weight=1); self.button(test,"Test Up",lambda:self.test_ws(\'up\'),row=1,column=0,padx=4,pady=4,sticky=\'ew\'); self.button(test,"Test Down",lambda:self.test_ws(\'down\'),row=1,column=1,padx=4,pady=4,sticky=\'ew\'); self.label(test,"Browser uses X. Workspace uses Y. Use Custom for separate tuning.",size=9,color=C[\'muted\'],row=2,column=0,columnspan=2,sticky=\'w\',pady=(10,0))'
     old_wrapped = 'test=self.card(right,"Workspace test",1,0); test.columnconfigure(0,weight=1); test.columnconfigure(1,weight=1); self.button(test,"Test Up",lambda:self.test_ws(\'up\'),row=1,column=0,padx=4,pady=4,sticky=\'ew\'); self.button(test,"Test Down",lambda:self.test_ws(\'down\'),row=1,column=1,padx=4,pady=4,sticky=\'ew\'); self.label(test,"Browser uses X. Workspace uses Y. Use Custom for separate tuning.",size=9,color=C[\'muted\'],row=2,column=0,columnspan=2,sticky=\'w\',pady=(10,0),wraplength=300)'
     new = '''test=self.card(right,"Workspace test",1,0); test.columnconfigure(0,weight=1); test.columnconfigure(1,weight=1)
-   self.label(test,"Workspace target",size=9,color=C['muted'],row=1,column=0,sticky='w',padx=4)
-   wtm=tk.OptionMenu(test,self.ws_target,*self.ws_target_values.keys()); wtm.configure(bg=C['card2'],fg=C['text'],activebackground=C['panel'],activeforeground=C['text'],highlightthickness=1,highlightbackground=C['border'],relief='flat',font=("Inter",10,"bold")); wtm['menu'].configure(bg=C['card2'],fg=C['text'],activebackground=C['blue'],activeforeground=C['text']); wtm.grid(row=2,column=0,padx=4,pady=4,sticky='ew')
-   self.button(test,"Apply Target",self.apply_ws_target,True,row=2,column=1,padx=4,pady=4,sticky='ew')
-   self.button(test,"Test Up",lambda:self.test_ws('up'),row=3,column=0,padx=4,pady=4,sticky='ew'); self.button(test,"Test Down",lambda:self.test_ws('down'),row=3,column=1,padx=4,pady=4,sticky='ew')
-   self.button(test,"Target Status",lambda:self.test_ws('status'),row=4,column=0,columnspan=2,padx=4,pady=4,sticky='ew')
-   self.label(test,"Default Auto matches the stable rule: active window decides. Use Screen 1/2 on empty desktop if COSMIC keeps old focus.",size=9,color=C['muted'],row=5,column=0,columnspan=2,sticky='w',pady=(10,0),wraplength=300)'''
+  self.label(test,"Workspace target",size=9,color=C['muted'],row=1,column=0,sticky='w',padx=4)
+  wtm=tk.OptionMenu(test,self.ws_target,*self.ws_target_values.keys()); wtm.configure(bg=C['card2'],fg=C['text'],activebackground=C['panel'],activeforeground=C['text'],highlightthickness=1,highlightbackground=C['border'],relief='flat',font=("Inter",10,"bold")); wtm['menu'].configure(bg=C['card2'],fg=C['text'],activebackground=C['blue'],activeforeground=C['text']); wtm.grid(row=2,column=0,padx=4,pady=4,sticky='ew')
+  self.button(test,"Apply Target",self.apply_ws_target,True,row=2,column=1,padx=4,pady=4,sticky='ew')
+  self.button(test,"Test Up",lambda:self.test_ws('up'),row=3,column=0,padx=4,pady=4,sticky='ew'); self.button(test,"Test Down",lambda:self.test_ws('down'),row=3,column=1,padx=4,pady=4,sticky='ew')
+  self.button(test,"Target Status",lambda:self.test_ws('status'),row=4,column=0,columnspan=2,padx=4,pady=4,sticky='ew')
+  self.label(test,"Default Auto matches the stable rule: active window decides. Use Screen 1/2 on empty desktop if COSMIC keeps old focus.",size=9,color=C['muted'],row=5,column=0,columnspan=2,sticky='w',pady=(10,0),wraplength=300)'''
     if old_wrapped in text:
         text = text.replace(old_wrapped, new, 1)
     elif old_plain in text:
