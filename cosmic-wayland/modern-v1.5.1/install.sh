@@ -17,6 +17,10 @@ chmod +x "$PANEL"
 printf '\033[1;32m[modern v1.5.1]\033[0m Applying final UI polish...\n'
 curl -fsSL "$BASE_URL/modern-v1.5.1/patch-modern-panel-v1.5.1.py" -o "$TMP/patch-modern-panel-v1.5.1.py"
 python3 "$TMP/patch-modern-panel-v1.5.1.py" "$PANEL"
+
+printf '\033[1;32m[modern v1.5.1]\033[0m Fixing details refresh...\n'
+curl -fsSL "$BASE_URL/modern-v1.5.1/patch-modern-details-v1.5.1.py" -o "$TMP/patch-modern-details-v1.5.1.py"
+python3 "$TMP/patch-modern-details-v1.5.1.py" "$PANEL"
 python3 -m py_compile "$PANEL"
 
 if [[ -f "$DESKTOP" ]]; then
