@@ -6,7 +6,7 @@ Desktop-specific Apple Magic Mouse gesture packages for Linux.
 
 | Folder | Version | Target desktop | Status |
 |---|---:|---|---|
-| `cosmic-wayland/` | `1.4.7` | Pop!_OS COSMIC / COSMIC Wayland | Stable Magic Mouse gesture setup with GUI control panel, bottom-right progress window, background actions, COSMIC workspace helper, and dock icon matching fix |
+| `cosmic-wayland/` | `1.4.8` | Pop!_OS COSMIC / COSMIC Wayland | Stable Magic Mouse gesture setup with GUI control panel, bottom-right progress window, background actions, COSMIC workspace helper, and dock icon matching fix |
 | `gnome-ubuntu/` | `0.2.1` | Ubuntu GNOME / Pop!_OS GNOME / GNOME Wayland | Full GNOME package with gesture daemon, GUI control panel, Shell extension, DBus workspace helper, systemd service, udev rule, and diagnostics |
 
 ## Pop!_OS COSMIC / COSMIC Wayland
@@ -18,13 +18,13 @@ Desktop-specific Apple Magic Mouse gesture packages for Linux.
 ### Quick install from GitHub
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.7.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.8.sh)"
 ```
 
 Alternative with `wget`:
 
 ```bash
-bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.7.sh)"
+bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.8.sh)"
 ```
 
 ### Manual clone install
@@ -33,7 +33,7 @@ bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/c
 git clone https://github.com/Tihulu/magic-mouse.git
 cd magic-mouse/cosmic-wayland
 chmod +x *.sh
-./setup-cosmic-v1.4.7.sh
+./setup-cosmic-v1.4.8.sh
 ```
 
 Launch the graphical control panel:
@@ -63,7 +63,7 @@ Default COSMIC gestures:
 | Two-finger swipe up | Workspace up |
 | Two-finger swipe down | Workspace down |
 
-The COSMIC package uses a stateful `cosmic-ws` helper powered by `cos-cli`, because synthetic workspace keyboard shortcuts are unreliable on COSMIC Wayland. The v1.4.7 setup script patches heavy control-panel actions so they run in the background and show a small bottom-right progress window instead of freezing the UI.
+The COSMIC package uses a stateful `cosmic-ws` helper powered by `cos-cli`, because synthetic workspace keyboard shortcuts are unreliable on COSMIC Wayland. The v1.4.8 setup script installs a clean control panel and fixes the v1.4.7 unterminated f-string regression.
 
 ## GNOME / Ubuntu
 
@@ -127,7 +127,7 @@ The GNOME panel uses the same quick direction idea as the COSMIC panel:
 - `Invert Workspace Direction`
 - `Normal Horizontal Direction`
 - `Invert Horizontal Direction`
-- `Normal Physical Axes`, `Invert X Axis`, `Invert Y Axis`, and `Invert Both Axes`
+- `Normal Physical Axes`, `Invert X Axis`, and `Invert Both Axes`
 
 Use the workspace/horizontal direction buttons first. Physical axis inversion is only for cases where the raw detected swipe direction itself is reversed.
 
