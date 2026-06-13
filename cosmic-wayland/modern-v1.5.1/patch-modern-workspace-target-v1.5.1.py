@@ -52,6 +52,26 @@ def patch(path: Path) -> None:
     if 'def apply_ws_target' not in text:
         text = text.replace(' def open_cli(self):', method + ' def open_cli(self):', 1)
 
+    old_test = ''' def test_ws(self,direction):
+  if not COSMIC_WS.exists(): messagebox.showerror('Missing helper',f'Helper not found:\n{COSMIC_WS}'); return
+  def worker(p):
+   p(50,f'Running cosmic-ws {direction}...'); r=run([str(COSMIC_WS),direction],10)
+   if r.returncode: raise RuntimeError(r.stderr or r.stdout or 'Workspace command failed')
+   return r
+  self.bg(f'Workspace {direction}',worker,f'Ran cosmic-ws {direction}','Workspace test failed')
+'''
+    new_test = ''' def test_ws(self,direction):
+  if not COSMIC_WS.exists(): messagebox.showerror('Missing helper',f'Helper not found:\n{COSMIC_WS}'); return
+  def worker(p):
+   p(50,f'Running cosmic-ws {direction}...'); r=run([str(COSMIC_WS),direction],10); out=(r.stdout or '')+('\n'+r.stderr if r.stderr else '')
+   if r.returncode: raise RuntimeError(out or 'Workspace command failed')
+   return out
+  if direction=='status': self.bg('Workspace target status',worker,err='Workspace status failed',show=False,done=lambda out:self.output('Workspace target status',out or 'No output'))
+  else: self.bg(f'Workspace {direction}',worker,f'Ran cosmic-ws {direction}','Workspace test failed')
+'''
+    if old_test in text:
+        text = text.replace(old_test, new_test, 1)
+
     path.write_text(text)
 
 
