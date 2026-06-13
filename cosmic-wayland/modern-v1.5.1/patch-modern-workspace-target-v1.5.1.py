@@ -29,17 +29,21 @@ def patch(path: Path) -> None:
         1,
     )
 
-    old = 'test=self.card(right,"Workspace test",1,0); test.columnconfigure(0,weight=1); test.columnconfigure(1,weight=1); self.button(test,"Test Up",lambda:self.test_ws(\'up\'),row=1,column=0,padx=4,pady=4,sticky=\'ew\'); self.button(test,"Test Down",lambda:self.test_ws(\'down\'),row=1,column=1,padx=4,pady=4,sticky=\'ew\'); self.label(test,"Browser uses X. Workspace uses Y. Use Custom for separate tuning.",size=9,color=C[\'muted\'],row=2,column=0,columnspan=2,sticky=\'w\',pady=(10,0))'
+    old_plain = 'test=self.card(right,"Workspace test",1,0); test.columnconfigure(0,weight=1); test.columnconfigure(1,weight=1); self.button(test,"Test Up",lambda:self.test_ws(\'up\'),row=1,column=0,padx=4,pady=4,sticky=\'ew\'); self.button(test,"Test Down",lambda:self.test_ws(\'down\'),row=1,column=1,padx=4,pady=4,sticky=\'ew\'); self.label(test,"Browser uses X. Workspace uses Y. Use Custom for separate tuning.",size=9,color=C[\'muted\'],row=2,column=0,columnspan=2,sticky=\'w\',pady=(10,0))'
+    old_wrapped = 'test=self.card(right,"Workspace test",1,0); test.columnconfigure(0,weight=1); test.columnconfigure(1,weight=1); self.button(test,"Test Up",lambda:self.test_ws(\'up\'),row=1,column=0,padx=4,pady=4,sticky=\'ew\'); self.button(test,"Test Down",lambda:self.test_ws(\'down\'),row=1,column=1,padx=4,pady=4,sticky=\'ew\'); self.label(test,"Browser uses X. Workspace uses Y. Use Custom for separate tuning.",size=9,color=C[\'muted\'],row=2,column=0,columnspan=2,sticky=\'w\',pady=(10,0),wraplength=300)'
     new = '''test=self.card(right,"Workspace test",1,0); test.columnconfigure(0,weight=1); test.columnconfigure(1,weight=1)
    self.label(test,"Workspace target",size=9,color=C['muted'],row=1,column=0,sticky='w',padx=4)
    wtm=tk.OptionMenu(test,self.ws_target,*self.ws_target_values.keys()); wtm.configure(bg=C['card2'],fg=C['text'],activebackground=C['panel'],activeforeground=C['text'],highlightthickness=1,highlightbackground=C['border'],relief='flat',font=("Inter",10,"bold")); wtm['menu'].configure(bg=C['card2'],fg=C['text'],activebackground=C['blue'],activeforeground=C['text']); wtm.grid(row=2,column=0,padx=4,pady=4,sticky='ew')
    self.button(test,"Apply Target",self.apply_ws_target,True,row=2,column=1,padx=4,pady=4,sticky='ew')
    self.button(test,"Test Up",lambda:self.test_ws('up'),row=3,column=0,padx=4,pady=4,sticky='ew'); self.button(test,"Test Down",lambda:self.test_ws('down'),row=3,column=1,padx=4,pady=4,sticky='ew')
    self.button(test,"Target Status",lambda:self.test_ws('status'),row=4,column=0,columnspan=2,padx=4,pady=4,sticky='ew')
-   self.label(test,"Default Auto matches the stable rule: active window decides. Use Screen 1/2 on empty desktop if COSMIC keeps old focus.",size=9,color=C['muted'],row=5,column=0,columnspan=2,sticky='w',pady=(10,0))'''
-    if old not in text:
+   self.label(test,"Default Auto matches the stable rule: active window decides. Use Screen 1/2 on empty desktop if COSMIC keeps old focus.",size=9,color=C['muted'],row=5,column=0,columnspan=2,sticky='w',pady=(10,0),wraplength=300)'''
+    if old_wrapped in text:
+        text = text.replace(old_wrapped, new, 1)
+    elif old_plain in text:
+        text = text.replace(old_plain, new, 1)
+    else:
         raise RuntimeError('workspace test block not found')
-    text = text.replace(old, new, 1)
 
     method = ''' def apply_ws_target(self):
   label=self.ws_target.get(); mode=self.ws_target_values.get(label,'auto')
