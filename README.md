@@ -8,31 +8,31 @@ Desktop-specific Apple Magic Mouse gesture packages for Linux.
 |---|---:|---|---|
 | `cosmic-wayland/` | `1.4.8` | Pop!_OS COSMIC / COSMIC Wayland | Stable Magic Mouse gesture setup with GUI control panel, bottom-right progress window, background actions, COSMIC workspace helper, and dock icon matching fix |
 | `cosmic-wayland/stable-v1.4.8/` | `1.4.8` | Pop!_OS COSMIC / COSMIC Wayland | Safe fallback installer for the stable simple UI |
-| `cosmic-wayland/modern-v1.5.0/` | `1.5.0-modern` | Pop!_OS COSMIC / COSMIC Wayland | Lightweight Apple-like Tk/ttk styling preview built on top of v1.4.8 |
+| `cosmic-wayland/modern-v1.5.1/` | `1.5.1-modern` | Pop!_OS COSMIC / COSMIC Wayland | Real modern dark COSMIC control panel with modern app icon, mode indicator, custom sensitivity, and stable v1.4.8 backend |
 | `gnome-ubuntu/` | `0.2.2` | Ubuntu GNOME / Pop!_OS GNOME / GNOME Wayland | Full GNOME package with gesture daemon, GUI control panel, Shell extension, DBus workspace helper, systemd service, udev rule, and diagnostics |
 
 ## Pop!_OS COSMIC / COSMIC Wayland
 
 <p align="left">
-  <img src="cosmic-wayland/assets/magic-mouse-control-panel.svg" width="96" alt="Magic Mouse Control Panel icon">
+  <img src="cosmic-wayland/modern-v1.5.1/assets/magic-mouse-control-panel.svg" width="120" alt="Magic Mouse Control Panel icon">
 </p>
 
 ### Stable install from GitHub
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.8.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.8-relaxed.sh)"
 ```
 
 Alternative with `wget`:
 
 ```bash
-bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.8.sh)"
+bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.8-relaxed.sh)"
 ```
 
-### Modern Apple-like UI preview
+### Modern COSMIC UI
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/modern-v1.5.0/install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/modern-v1.5.1/install.sh)"
 ```
 
 Return to the stable simple UI:
@@ -47,7 +47,7 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/
 git clone https://github.com/Tihulu/magic-mouse.git
 cd magic-mouse/cosmic-wayland
 chmod +x *.sh
-./setup-cosmic-v1.4.8.sh
+./setup-cosmic-v1.4.8-relaxed.sh
 ```
 
 Launch the graphical control panel:
@@ -77,7 +77,7 @@ Default COSMIC gestures:
 | Two-finger swipe up | Workspace up |
 | Two-finger swipe down | Workspace down |
 
-The COSMIC package uses a stateful `cosmic-ws` helper powered by `cos-cli`, because synthetic workspace keyboard shortcuts are unreliable on COSMIC Wayland. The stable v1.4.8 setup script installs a clean control panel and fixes the v1.4.7 unterminated f-string regression. The modern preview keeps the stable backend and applies a small Apple-like Tk/ttk skin without adding heavy UI dependencies.
+The COSMIC package uses a stateful `cosmic-ws` helper powered by `cos-cli`, because synthetic workspace keyboard shortcuts are unreliable on COSMIC Wayland. The stable v1.4.8 setup script installs a clean control panel, fixes the v1.4.7 unterminated f-string regression, adds the Tihulu sensitivity preset, and supports custom sensitivity values. The modern v1.5.1 UI keeps the stable backend and installs a real modern dark control panel with the modern Magic Mouse icon.
 
 ## GNOME / Ubuntu
 
