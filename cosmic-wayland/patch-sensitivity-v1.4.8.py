@@ -33,6 +33,7 @@ CUSTOM_UI = '''
         )):
             ttk.Label(custom, text=label).grid(row=0, column=col, sticky="w", padx=4)
             ttk.Entry(custom, textvariable=var, width=10).grid(row=1, column=col, sticky="ew", padx=4, pady=(3, 0))
+        ttk.Label(custom, text="Example / default custom: X 550 · Y 480 · Cooldown 550 ms · Axis lock 1.35").grid(row=2, column=0, columnspan=4, sticky="w", padx=4, pady=(8, 0))
         ttk.Button(setup, text="Apply Custom Sensitivity", command=self.apply_custom_sensitivity).grid(row=10, column=0, columnspan=3, padx=4, pady=4, sticky="ew")
 '''
 
@@ -98,6 +99,14 @@ def add_custom_ui(text: str) -> str:
     return text.replace(needle, needle + CUSTOM_UI, 1)
 
 
+def add_custom_example(text: str) -> str:
+    if 'Example / default custom: X 550' in text:
+        return text
+    needle = '            ttk.Entry(custom, textvariable=var, width=10).grid(row=1, column=col, sticky="ew", padx=4, pady=(3, 0))\n'
+    extra = '        ttk.Label(custom, text="Example / default custom: X 550 · Y 480 · Cooldown 550 ms · Axis lock 1.35").grid(row=2, column=0, columnspan=4, sticky="w", padx=4, pady=(8, 0))\n'
+    return text.replace(needle, needle + extra, 1)
+
+
 def add_custom_methods(text: str) -> str:
     if 'def apply_custom_sensitivity' in text:
         return text
@@ -128,13 +137,27 @@ def update_apply_sensitivity(text: str) -> str:
     return text.replace(old, new, 1)
 
 
+def update_busy_notice(text: str) -> str:
+    text = text.replace(
+        'messagebox.showinfo("Busy", "Another action is already running. Please wait.")',
+        'messagebox.showinfo("Action already running", "Another action is already running. Please wait for it to finish.")',
+    )
+    text = text.replace(
+        "messagebox.showinfo('Busy','Another action is already running.')",
+        "messagebox.showinfo('Action already running','Another action is already running. Please wait for it to finish.')",
+    )
+    return text
+
+
 def patch(path: Path) -> None:
     text = path.read_text()
     text = replace_presets(text)
     text = add_custom_vars(text)
     text = add_custom_ui(text)
+    text = add_custom_example(text)
     text = add_custom_methods(text)
     text = update_apply_sensitivity(text)
+    text = update_busy_notice(text)
     path.write_text(text)
 
 
