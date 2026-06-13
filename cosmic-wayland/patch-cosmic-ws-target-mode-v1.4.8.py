@@ -50,8 +50,8 @@ case "$MODE" in
   *) MODE="auto" ;;
 esac
 
-mapfile -t GROUPS < <(jq -r '.workspace_groups[]? | .index' <<< "$JSON" | sort -n)
-if [[ "${#GROUPS[@]}" -eq 0 ]]; then
+mapfile -t WS_GROUPS < <(jq -r '.workspace_groups[]? | .index' <<< "$JSON" | sort -n)
+if [[ "${#WS_GROUPS[@]}" -eq 0 ]]; then
   echo "No COSMIC workspace groups found" >&2
   exit 1
 fi
@@ -89,11 +89,11 @@ CUR=""
 SOURCE=""
 
 if [[ "$MODE" == "screen1" ]]; then
-  GROUP="${GROUPS[0]}"
+  GROUP="${WS_GROUPS[0]}"
   CUR="$(saved_ws_for_group "$GROUP")"
   SOURCE="screen1"
 elif [[ "$MODE" == "screen2" ]]; then
-  GROUP="${GROUPS[1]:-${GROUPS[0]}}"
+  GROUP="${WS_GROUPS[1]:-${WS_GROUPS[0]}}"
   CUR="$(saved_ws_for_group "$GROUP")"
   SOURCE="screen2"
 else
@@ -114,7 +114,7 @@ else
     fi
   fi
   if [[ -z "${GROUP:-}" || -z "${CUR:-}" ]]; then
-    GROUP="${GROUPS[0]}"
+    GROUP="${WS_GROUPS[0]}"
     CUR="$(saved_ws_for_group "$GROUP")"
     SOURCE="fallback-first-group"
   fi
@@ -126,7 +126,7 @@ if [[ -z "${GROUP:-}" || -z "${CUR:-}" ]]; then
 fi
 
 if [[ "$DIR" == "status" ]]; then
-  echo "mode=$MODE source=$SOURCE group=$GROUP workspace=$CUR groups=${GROUPS[*]}"
+  echo "mode=$MODE source=$SOURCE group=$GROUP workspace=$CUR groups=${WS_GROUPS[*]}"
   exit 0
 fi
 
@@ -159,7 +159,7 @@ fi
 TARGET="${IDX[$TARGET_POS]}"
 
 if [[ "$MODE" == "all" ]]; then
-  for G in "${GROUPS[@]}"; do
+  for G in "${WS_GROUPS[@]}"; do
     if workspace_exists "$G" "$TARGET"; then
       "$COS_CLI" ws-activate -g "$G" -w "$TARGET" >/dev/null 2>&1 || true
     fi
