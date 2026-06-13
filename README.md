@@ -6,7 +6,7 @@ Desktop-specific Apple Magic Mouse gesture packages for Linux.
 
 | Folder | Version | Target desktop | Status |
 |---|---:|---|---|
-| `cosmic-wayland/` | `1.4.6` | Pop!_OS COSMIC / COSMIC Wayland | Stable Magic Mouse gesture setup with GUI control panel, fast startup, non-blocking scroll buttons, COSMIC workspace helper, and dock icon matching fix |
+| `cosmic-wayland/` | `1.4.7` | Pop!_OS COSMIC / COSMIC Wayland | Stable Magic Mouse gesture setup with GUI control panel, bottom-right progress window, background actions, COSMIC workspace helper, and dock icon matching fix |
 | `gnome-ubuntu/` | `0.2.1` | Ubuntu GNOME / Pop!_OS GNOME / GNOME Wayland | Full GNOME package with gesture daemon, GUI control panel, Shell extension, DBus workspace helper, systemd service, udev rule, and diagnostics |
 
 ## Pop!_OS COSMIC / COSMIC Wayland
@@ -18,13 +18,13 @@ Desktop-specific Apple Magic Mouse gesture packages for Linux.
 ### Quick install from GitHub
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.6.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.7.sh)"
 ```
 
 Alternative with `wget`:
 
 ```bash
-bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.6.sh)"
+bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.7.sh)"
 ```
 
 ### Manual clone install
@@ -33,7 +33,7 @@ bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/c
 git clone https://github.com/Tihulu/magic-mouse.git
 cd magic-mouse/cosmic-wayland
 chmod +x *.sh
-./setup-cosmic-v1.4.6.sh
+./setup-cosmic-v1.4.7.sh
 ```
 
 Launch the graphical control panel:
@@ -63,7 +63,7 @@ Default COSMIC gestures:
 | Two-finger swipe up | Workspace up |
 | Two-finger swipe down | Workspace down |
 
-The COSMIC package uses a stateful `cosmic-ws` helper powered by `cos-cli`, because synthetic workspace keyboard shortcuts are unreliable on COSMIC Wayland. The v1.4.6 setup script normalizes the installer label before launch and patches the control panel so the window appears immediately and natural/traditional scroll changes run in the background.
+The COSMIC package uses a stateful `cosmic-ws` helper powered by `cos-cli`, because synthetic workspace keyboard shortcuts are unreliable on COSMIC Wayland. The v1.4.7 setup script patches heavy control-panel actions so they run in the background and show a small bottom-right progress window instead of freezing the UI.
 
 ## GNOME / Ubuntu
 
