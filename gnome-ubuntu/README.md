@@ -1,4 +1,4 @@
-# Magic Mouse GNOME package 0.2.1
+# Magic Mouse GNOME package 0.2.2
 
 Full Magic Mouse gesture package for Ubuntu GNOME, Pop!_OS GNOME, and other GNOME Shell desktops.
 
@@ -12,6 +12,16 @@ This is no longer only a workspace bridge. It includes:
 - udev permission rule
 - diagnostics and service helpers
 
+## What changed in 0.2.2
+
+- Added explicit browser direction buttons to the GNOME control panel:
+  - `Normal Browser Direction`
+  - `Invert Browser Direction`
+- Renamed horizontal workspace buttons so they are not confused with browser navigation:
+  - `Normal Horizontal Workspace`
+  - `Invert Horizontal Workspace`
+- Browser direction maps left/right gestures to Alt+Left / Alt+Right using `wtype`.
+
 ## What changed in 0.2.1
 
 - Reworked the GNOME control panel UI to match the COSMIC panel more closely.
@@ -20,8 +30,6 @@ This is no longer only a workspace bridge. It includes:
   - `Apply Stable Default`
   - `Normal Workspace Direction`
   - `Invert Workspace Direction`
-  - `Normal Horizontal Direction`
-  - `Invert Horizontal Direction`
   - `Disable Workspace Gestures`
 - Added physical axis inversion buttons:
   - `Normal Physical Axes`
@@ -29,7 +37,7 @@ This is no longer only a workspace bridge. It includes:
   - `Invert Y Axis`
   - `Invert Both Axes`
 
-Use the workspace/horizontal direction buttons first when the direction feels wrong. Use physical axis inversion only when the raw detected swipe direction itself is reversed.
+Use workspace direction for GNOME workspaces. Use browser direction for browser back/forward. Use physical axis inversion only when the raw detected swipe direction itself is reversed.
 
 ## Supported GNOME Shell ranges
 
@@ -91,7 +99,14 @@ Expected default behavior:
 magic-mouse-control-panel
 ```
 
-The first tab is `Setup Flow`, with quick buttons for status, service restart, sensitivity presets, workspace direction, horizontal direction, physical axis inversion, and direct workspace tests.
+The first tab is `Setup Flow`, with quick buttons for status, service restart, sensitivity presets, workspace direction, browser direction, horizontal workspace direction, physical axis inversion, and direct tests.
+
+Browser direction means:
+
+| Button | Swipe left | Swipe right |
+|---|---|---|
+| `Normal Browser Direction` | Browser back | Browser forward |
+| `Invert Browser Direction` | Browser forward | Browser back |
 
 Do not run the panel with `sudo`; it needs the logged-in desktop display session.
 
