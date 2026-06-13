@@ -6,7 +6,7 @@ This folder contains the current stable COSMIC Wayland package: **v1.4.8**.
 
 The package avoids unreliable synthetic workspace keyboard shortcuts and uses a stateful `cosmic-ws` helper powered by `cos-cli` for COSMIC workspace switching.
 
-## Quick install from GitHub
+## Stable install from GitHub
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.8.sh)"
@@ -19,6 +19,20 @@ bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/c
 ```
 
 The setup script installs a clean **v1.4.8** control panel and fixes the v1.4.7 unterminated f-string regression.
+
+## Optional modern UI preview
+
+A lightweight Apple-like Tk/ttk skin is available in a separate folder:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/modern-v1.5.0/install.sh)"
+```
+
+Return to the stable simple UI:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/stable-v1.4.8/install.sh)"
+```
 
 ## Manual install
 
