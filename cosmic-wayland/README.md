@@ -18,7 +18,7 @@ Alternative with `wget`:
 bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.8.sh)"
 ```
 
-The setup script installs a clean **v1.4.8** control panel and fixes the v1.4.7 unterminated f-string regression.
+The setup script installs a clean **v1.4.8** control panel, fixes the v1.4.7 unterminated f-string regression, and adds a visible mode indicator under the session line.
 
 ## Optional modern UI preview
 
@@ -64,6 +64,7 @@ Default source path used by this package:
 - user systemd service integration for the Magic Mouse gesture daemon
 - local udev rule and immediate ACL repair for Apple Magic Mouse HID raw access
 - Magic Mouse-style launcher icon
+- visible mode indicator under the session line, for example `Workspace: Normal · Browser: Inverted`
 - background action runner for heavy GUI actions
 - small bottom-right progress window with percentage feedback
 - non-blocking natural/traditional scroll buttons
