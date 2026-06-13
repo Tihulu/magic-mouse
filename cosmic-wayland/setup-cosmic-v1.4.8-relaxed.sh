@@ -3,17 +3,22 @@ set -euo pipefail
 
 say() { printf '\033[1;32m[cosmic relaxed setup]\033[0m %s\n' "$*"; }
 
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
 say "Installing stable v1.4.8 base..."
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.8.sh)" -- "$@"
 
 panel="$HOME/.local/bin/magic-mouse-control-panel"
-patch_url="https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/patch-sensitivity-v1.4.8.py"
-patch_file="$(mktemp)"
-trap 'rm -f "$patch_file"' EXIT
+cosmic_ws="$HOME/.local/bin/cosmic-ws"
 
-say "Applying calmer Relaxed and new Very Relaxed preset..."
-curl -fsSL "$patch_url" -o "$patch_file"
-python3 "$patch_file" "$panel"
+say "Applying Tihulu/custom sensitivity presets..."
+curl -fsSL "https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/patch-sensitivity-v1.4.8.py" -o "$TMP/patch-sensitivity-v1.4.8.py"
+python3 "$TMP/patch-sensitivity-v1.4.8.py" "$panel"
 python3 -m py_compile "$panel"
 
-say "Done. Open the panel and choose Relaxed or Very Relaxed."
+say "Applying multi-monitor COSMIC workspace helper..."
+curl -fsSL "https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/patch-cosmic-ws-multimonitor-v1.4.8.py" -o "$TMP/patch-cosmic-ws-multimonitor-v1.4.8.py"
+python3 "$TMP/patch-cosmic-ws-multimonitor-v1.4.8.py" "$cosmic_ws"
+
+say "Done. Workspaces now switch across all COSMIC monitor groups."
