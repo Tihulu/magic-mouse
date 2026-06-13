@@ -8,100 +8,168 @@ SCRIPT = r'''#!/usr/bin/env bash
 set -euo pipefail
 
 DIR="${1:-}"
-if [[ "$DIR" != "up" && "$DIR" != "down" && "$DIR" != "prev" && "$DIR" != "next" && "$DIR" != "status" ]]; then
-  echo "usage: cosmic-ws up|down|prev|next|status" >&2
+case "$DIR" in
+  prev) DIR="up" ;;
+  next) DIR="down" ;;
+esac
+if [[ "$DIR" != "up" && "$DIR" != "down" && "$DIR" != "status" ]]; then
+  echo "usage: cosmic-ws up|down|status" >&2
   exit 2
 fi
-case "$DIR" in prev) DIR="up" ;; next) DIR="down" ;; esac
 
 COS_CLI="${COS_CLI:-$HOME/.cargo/bin/cos-cli}"
-[[ -x "$COS_CLI" ]] || COS_CLI="$(command -v cos-cli || true)"
-[[ -n "$COS_CLI" && -x "$COS_CLI" ]] || { echo "cos-cli not found" >&2; exit 1; }
-command -v jq >/dev/null 2>&1 || { echo "jq not found" >&2; exit 1; }
+if [[ ! -x "$COS_CLI" ]]; then
+  COS_CLI="$(command -v cos-cli || true)"
+fi
+if [[ -z "$COS_CLI" || ! -x "$COS_CLI" ]]; then
+  echo "cos-cli was not found" >&2
+  exit 1
+fi
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq was not found" >&2
+  exit 1
+fi
 
 PROFILE="${MAGIC_MOUSE_PROFILE:-$HOME/.config/magic-mouse-gestures/profile.env}"
 STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/magic-mouse-cosmic-ws.state"
 JSON="$($COS_CLI info --json)"
 
-mode="${WORKSPACE_TARGET:-auto}"
+MODE="auto"
 if [[ -f "$PROFILE" ]]; then
-  raw="$(grep -E '^WORKSPACE_TARGET=' "$PROFILE" | tail -n1 | cut -d= -f2- || true)"
-  raw="${raw%\"}"; raw="${raw#\"}"; raw="${raw%\'}"; raw="${raw#\'}"
-  [[ -n "$raw" ]] && mode="$raw"
+  M="$(grep -E '^WORKSPACE_TARGET=' "$PROFILE" | tail -n1 | cut -d= -f2- || true)"
+  M="${M//\"/}"
+  M="${M//\'/}"
+  [[ -n "$M" ]] && MODE="$M"
 fi
-mode="${mode,,}"
-case "$mode" in
-  auto|stable|focused|focused-window) mode="auto" ;;
-  screen1|monitor1|display1|1) mode="screen1" ;;
-  screen2|monitor2|display2|2) mode="screen2" ;;
-  all|both|sync) mode="all" ;;
-  *) mode="auto" ;;
+MODE="${MODE,,}"
+case "$MODE" in
+  auto|stable|focused|focused-window) MODE="auto" ;;
+  screen1|monitor1|display1|1) MODE="screen1" ;;
+  screen2|monitor2|display2|2) MODE="screen2" ;;
+  all|both|sync) MODE="all" ;;
+  *) MODE="auto" ;;
 esac
 
-workspace_exists() {
-  local group="$1" ws="$2"
-  jq -e --argjson g "$group" --argjson w "$ws" '.workspace_groups[]? | select(.index == $g) | .workspaces[]? | select(.index == $w)' <<< "$JSON" >/dev/null
-}
-
-active_ws_for_group() {
-  local group="$1"
-  jq -r --argjson g "$group" '.workspace_groups[]? | select(.index == $g) | (.active_workspace_index // .current_workspace_index // .focused_workspace_index // .workspaces[0].index)' <<< "$JSON"
-}
-
 mapfile -t GROUPS < <(jq -r '.workspace_groups[]? | .index' <<< "$JSON" | sort -n)
-[[ "${#GROUPS[@]}" -gt 0 ]] || { echo "No COSMIC workspace groups found" >&2; exit 1; }
+if [[ "${#GROUPS[@]}" -eq 0 ]]; then
+  echo "No COSMIC workspace groups found" >&2
+  exit 1
+fi
 
-active_window="$(jq -r 'first(.apps[]? | select((.state // []) | index("activated")) | .workspaces[0]?) | if . == null then empty else "\(.group_index) \(.index)" end' <<< "$JSON")"
+workspace_exists() {
+  jq -e --argjson g "$1" --argjson w "$2" '.workspace_groups[]? | select(.index == $g) | .workspaces[]? | select(.index == $w)' <<< "$JSON" >/dev/null
+}
 
-GROUP=""; CUR=""; source=""
-if [[ "$mode" == "screen1" ]]; then
-  GROUP="${GROUPS[0]}"; CUR="$(active_ws_for_group "$GROUP")"; source="screen1-override"
-elif [[ "$mode" == "screen2" ]]; then
-  GROUP="${GROUPS[1]:-${GROUPS[0]}}"; CUR="$(active_ws_for_group "$GROUP")"; source="screen2-override"
+workspace_list() {
+  jq -r --argjson g "$1" '.workspace_groups[]? | select(.index == $g) | .workspaces[]? | .index' <<< "$JSON" | sort -n
+}
+
+first_ws_for_group() {
+  jq -r --argjson g "$1" '.workspace_groups[]? | select(.index == $g) | .workspaces[0].index' <<< "$JSON"
+}
+
+saved_ws_for_group() {
+  local sg="" sw=""
+  if [[ -f "$STATE_FILE" ]]; then
+    read -r sg sw < "$STATE_FILE" || true
+    if [[ "$sg" == "$1" && -n "$sw" ]] && workspace_exists "$1" "$sw"; then
+      echo "$sw"
+      return 0
+    fi
+  fi
+  first_ws_for_group "$1"
+}
+
+active_window_group_ws() {
+  jq -r 'first(.apps[]? | select((.state // []) | index("activated")) | .workspaces[0]?) | if . == null then empty else "\(.group_index) \(.index)" end' <<< "$JSON"
+}
+
+GROUP=""
+CUR=""
+SOURCE=""
+
+if [[ "$MODE" == "screen1" ]]; then
+  GROUP="${GROUPS[0]}"
+  CUR="$(saved_ws_for_group "$GROUP")"
+  SOURCE="screen1"
+elif [[ "$MODE" == "screen2" ]]; then
+  GROUP="${GROUPS[1]:-${GROUPS[0]}}"
+  CUR="$(saved_ws_for_group "$GROUP")"
+  SOURCE="screen2"
 else
-  # Default/stable principle: use the activated window's workspace group.
-  if [[ -n "$active_window" ]]; then
-    read -r GROUP CUR <<< "$active_window"; source="activated-window"
+  CURRENT="$(active_window_group_ws)"
+  if [[ -n "$CURRENT" ]]; then
+    read -r GROUP CUR <<< "$CURRENT"
+    SOURCE="activated-window"
   fi
   if [[ -z "${GROUP:-}" || -z "${CUR:-}" ]]; then
     if [[ -f "$STATE_FILE" ]]; then
       read -r GROUP CUR < "$STATE_FILE" || true
-      [[ "${GROUP:-}" == "all" ]] && GROUP="" && CUR=""
-      source="last-saved-group"
+      if [[ "${GROUP:-}" == "all" ]] || ! workspace_exists "$GROUP" "$CUR"; then
+        GROUP=""
+        CUR=""
+      else
+        SOURCE="last-state"
+      fi
     fi
   fi
   if [[ -z "${GROUP:-}" || -z "${CUR:-}" ]]; then
-    GROUP="${GROUPS[0]}"; CUR="$(active_ws_for_group "$GROUP")"; source="first-group-fallback"
+    GROUP="${GROUPS[0]}"
+    CUR="$(saved_ws_for_group "$GROUP")"
+    SOURCE="fallback-first-group"
   fi
 fi
 
-[[ -n "${GROUP:-}" && -n "${CUR:-}" ]] || { echo "No target COSMIC workspace group found" >&2; exit 1; }
+if [[ -z "${GROUP:-}" || -z "${CUR:-}" ]]; then
+  echo "No target workspace group found" >&2
+  exit 1
+fi
 
 if [[ "$DIR" == "status" ]]; then
-  echo "mode=$mode source=$source group=$GROUP workspace=$CUR groups=${GROUPS[*]}"
+  echo "mode=$MODE source=$SOURCE group=$GROUP workspace=$CUR groups=${GROUPS[*]}"
   exit 0
 fi
 
-mapfile -t IDX < <(jq -r --argjson g "$GROUP" '.workspace_groups[]? | select(.index == $g) | .workspaces[]? | .index' <<< "$JSON" | sort -n)
-[[ "${#IDX[@]}" -gt 0 ]] || exit 1
+mapfile -t IDX < <(workspace_list "$GROUP")
+if [[ "${#IDX[@]}" -eq 0 ]]; then
+  echo "No workspaces found for group $GROUP" >&2
+  exit 1
+fi
 
 POS=-1
 for i in "${!IDX[@]}"; do
-  [[ "${IDX[$i]}" == "$CUR" ]] && POS="$i" && break
+  if [[ "${IDX[$i]}" == "$CUR" ]]; then
+    POS="$i"
+    break
+  fi
 done
-[[ "$POS" != "-1" ]] || exit 1
+if [[ "$POS" == "-1" ]]; then
+  echo "Workspace $CUR not found in group $GROUP" >&2
+  exit 1
+fi
 
-if [[ "$DIR" == "up" ]]; then TARGET_POS=$((POS - 1)); else TARGET_POS=$((POS + 1)); fi
-(( TARGET_POS >= 0 && TARGET_POS < ${#IDX[@]} )) || exit 0
+if [[ "$DIR" == "up" ]]; then
+  TARGET_POS=$((POS - 1))
+else
+  TARGET_POS=$((POS + 1))
+fi
+if (( TARGET_POS < 0 || TARGET_POS >= ${#IDX[@]} )); then
+  exit 0
+fi
 TARGET="${IDX[$TARGET_POS]}"
 
-if [[ "$mode" == "all" ]]; then
+if [[ "$MODE" == "all" ]]; then
   for G in "${GROUPS[@]}"; do
-    workspace_exists "$G" "$TARGET" && "$COS_CLI" ws-activate -g "$G" -w "$TARGET" >/dev/null 2>&1 || true
+    if workspace_exists "$G" "$TARGET"; then
+      "$COS_CLI" ws-activate -g "$G" -w "$TARGET" >/dev/null 2>&1 || true
+    fi
   done
   echo "all $TARGET" > "$STATE_FILE"
 else
-  workspace_exists "$GROUP" "$TARGET" && "$COS_CLI" ws-activate -g "$GROUP" -w "$TARGET" && echo "$GROUP $TARGET" > "$STATE_FILE"
+  if workspace_exists "$GROUP" "$TARGET"; then
+    "$COS_CLI" ws-activate -g "$GROUP" -w "$TARGET"
+    echo "$GROUP $TARGET" > "$STATE_FILE"
+  fi
 fi
 '''
 
