@@ -35,6 +35,14 @@ MODERN_STYLE = '''    def _apply_modern_style(self):
 
 '''
 
+SENSITIVITY_BLOCK = '''SENSITIVITY_PRESETS = {
+    "Default": {"SWIPE_THRESHOLD_X": "360", "SWIPE_THRESHOLD_Y": "420", "SWIPE_COOLDOWN_MS": "450", "AXIS_LOCK_RATIO": "1.15"},
+    "Sensitive": {"SWIPE_THRESHOLD_X": "280", "SWIPE_THRESHOLD_Y": "340", "SWIPE_COOLDOWN_MS": "380", "AXIS_LOCK_RATIO": "1.10"},
+    "Relaxed": {"SWIPE_THRESHOLD_X": "560", "SWIPE_THRESHOLD_Y": "640", "SWIPE_COOLDOWN_MS": "700", "AXIS_LOCK_RATIO": "1.25"},
+    "Very Relaxed": {"SWIPE_THRESHOLD_X": "720", "SWIPE_THRESHOLD_Y": "820", "SWIPE_COOLDOWN_MS": "900", "AXIS_LOCK_RATIO": "1.35"},
+}
+'''
+
 
 def patch(path: Path) -> None:
     text = path.read_text()
@@ -48,6 +56,13 @@ def patch(path: Path) -> None:
     text = text.replace('ttk.Label(header, textvariable=self.mode_var)', 'ttk.Label(header, textvariable=self.mode_var, style="Mode.TLabel")')
     text = text.replace('ttk.Label(header, textvariable=self.status_var)', 'ttk.Label(header, textvariable=self.status_var, style="Muted.TLabel")')
     text = text.replace('ttk.Button(setup, text="Apply Stable Defaults", command=self.apply_stable_defaults)', 'ttk.Button(setup, text="Apply Stable Defaults", command=self.apply_stable_defaults, style="Accent.TButton")')
+
+    start = text.find('SENSITIVITY_PRESETS = {')
+    if start != -1:
+        end = text.find('\n}\n', start)
+        if end != -1:
+            end += len('\n}\n')
+            text = text[:start] + SENSITIVITY_BLOCK + text[end:]
 
     if 'def _apply_modern_style' not in text:
         marker = '    def _build_ui(self):\n'
