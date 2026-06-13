@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 APP_DIR = Path.home() / ".config" / "magic-mouse"
 CONFIG_PATH = APP_DIR / "config.json"
 
@@ -28,6 +28,14 @@ HORIZONTAL_NORMAL = {
 HORIZONTAL_INVERTED = {
     "swipe_left": "magic-mouse-ws right",
     "swipe_right": "magic-mouse-ws left",
+}
+BROWSER_NORMAL = {
+    "swipe_left": "wtype -M alt -P left -p left -m alt",
+    "swipe_right": "wtype -M alt -P right -p right -m alt",
+}
+BROWSER_INVERTED = {
+    "swipe_left": "wtype -M alt -P right -p right -m alt",
+    "swipe_right": "wtype -M alt -P left -p left -m alt",
 }
 
 SENSITIVITY_PRESETS = {
@@ -247,7 +255,7 @@ class Panel:
 
         intro = (
             "Recommended order: 1) Status  2) Restart gesture service  3) Sensitivity preset  "
-            "4) Direction buttons  5) Test workspace switching"
+            "4) Direction buttons  5) Test workspace/browser commands"
         )
         ttk.Label(parent, text=intro, wraplength=900, justify="left").grid(row=0, column=0, sticky="w", pady=(0, 10))
 
@@ -283,8 +291,8 @@ class Panel:
         ttk.Label(
             s4,
             text=(
-                "Use these first if workspace direction feels wrong. They swap commands like the COSMIC panel. "
-                "Use physical axis inversion only when the detected swipe itself is reversed."
+                "Workspace direction controls GNOME workspaces. Browser direction sends Alt+Left/Alt+Right. "
+                "Physical axis inversion is only for cases where the raw detected swipe itself is reversed."
             ),
             wraplength=900,
             justify="left",
@@ -293,8 +301,10 @@ class Panel:
         ttk.Button(s4, text="Normal Workspace Direction", command=self.normal_workspace_direction).grid(row=1, column=1, sticky="ew", padx=4, pady=3)
         ttk.Button(s4, text="Invert Workspace Direction", command=self.invert_workspace_direction).grid(row=1, column=2, sticky="ew", padx=4, pady=3)
         ttk.Button(s4, text="Disable Workspace Gestures", command=self.disable_workspace_gestures).grid(row=1, column=3, sticky="ew", padx=4, pady=3)
-        ttk.Button(s4, text="Normal Horizontal Direction", command=self.normal_horizontal_direction).grid(row=2, column=1, sticky="ew", padx=4, pady=3)
-        ttk.Button(s4, text="Invert Horizontal Direction", command=self.invert_horizontal_direction).grid(row=2, column=2, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Normal Browser Direction", command=self.normal_browser_direction).grid(row=2, column=0, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Invert Browser Direction", command=self.invert_browser_direction).grid(row=2, column=1, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Normal Horizontal Workspace", command=self.normal_horizontal_direction).grid(row=2, column=2, sticky="ew", padx=4, pady=3)
+        ttk.Button(s4, text="Invert Horizontal Workspace", command=self.invert_horizontal_direction).grid(row=2, column=3, sticky="ew", padx=4, pady=3)
         ttk.Button(s4, text="Normal Physical Axes", command=lambda: self.apply_axis_inversion(False, False)).grid(row=3, column=0, sticky="ew", padx=4, pady=3)
         ttk.Button(s4, text="Invert X Axis", command=lambda: self.apply_axis_inversion(True, self.vars["invert_y"].get())).grid(row=3, column=1, sticky="ew", padx=4, pady=3)
         ttk.Button(s4, text="Invert Y Axis", command=lambda: self.apply_axis_inversion(self.vars["invert_x"].get(), True)).grid(row=3, column=2, sticky="ew", padx=4, pady=3)
@@ -306,8 +316,8 @@ class Panel:
             s5.columnconfigure(i, weight=1)
         ttk.Button(s5, text="Test Workspace Up", command=lambda: self.run_show("magic-mouse-ws up")).grid(row=0, column=0, sticky="ew", padx=4, pady=3)
         ttk.Button(s5, text="Test Workspace Down", command=lambda: self.run_show("magic-mouse-ws down")).grid(row=0, column=1, sticky="ew", padx=4, pady=3)
-        ttk.Button(s5, text="Test Workspace Left", command=lambda: self.run_show("magic-mouse-ws left")).grid(row=0, column=2, sticky="ew", padx=4, pady=3)
-        ttk.Button(s5, text="Test Workspace Right", command=lambda: self.run_show("magic-mouse-ws right")).grid(row=0, column=3, sticky="ew", padx=4, pady=3)
+        ttk.Button(s5, text="Test Browser Back", command=lambda: self.run_show(BROWSER_NORMAL["swipe_left"])).grid(row=0, column=2, sticky="ew", padx=4, pady=3)
+        ttk.Button(s5, text="Test Browser Forward", command=lambda: self.run_show(BROWSER_NORMAL["swipe_right"])).grid(row=0, column=3, sticky="ew", padx=4, pady=3)
 
     def _build_settings(self, parent):
         ttk = self.ttk
@@ -383,10 +393,14 @@ class Panel:
         ttk.Button(buttons, text="Normal Workspace Direction", command=self.normal_workspace_direction).grid(row=0, column=1, sticky="ew", padx=4)
         ttk.Button(buttons, text="Invert Workspace Direction", command=self.invert_workspace_direction).grid(row=0, column=2, sticky="ew", padx=4)
         ttk.Button(buttons, text="Disable Workspace Gestures", command=self.disable_workspace_gestures).grid(row=0, column=3, sticky="ew", padx=4)
+        ttk.Button(buttons, text="Normal Browser Direction", command=self.normal_browser_direction).grid(row=1, column=0, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(buttons, text="Invert Browser Direction", command=self.invert_browser_direction).grid(row=1, column=1, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(buttons, text="Normal Horizontal Workspace", command=self.normal_horizontal_direction).grid(row=1, column=2, sticky="ew", padx=4, pady=(6, 0))
+        ttk.Button(buttons, text="Invert Horizontal Workspace", command=self.invert_horizontal_direction).grid(row=1, column=3, sticky="ew", padx=4, pady=(6, 0))
 
         tips = (
-            "Examples: magic-mouse-ws down | magic-mouse-ws up | magic-mouse-ws left | "
-            "xdg-open https://example.com"
+            "Browser examples use Alt+Left / Alt+Right through wtype. Workspace examples use magic-mouse-ws. "
+            "On GNOME Wayland, workspace control is the most reliable path; browser shortcuts depend on synthetic keyboard support."
         )
         ttk.Label(parent, text=tips, wraplength=860).grid(row=7, column=0, columnspan=4, sticky="w", pady=12)
 
@@ -510,7 +524,7 @@ class Panel:
         for key in ["swipe_up", "swipe_down", "swipe_left", "swipe_right"]:
             c["enabled"][key] = True
         self._push_config_to_ui(c)
-        self.run_show("echo 'Applied stable GNOME defaults. Click Apply & Restart to activate.'", timeout=3)
+        self.run_show("echo 'Applied stable GNOME workspace defaults. Click Apply & Restart to activate.'", timeout=3)
 
     def normal_workspace_direction(self):
         c = self._collect()
@@ -534,7 +548,7 @@ class Panel:
         c["enabled"]["swipe_left"] = True
         c["enabled"]["swipe_right"] = True
         self._push_config_to_ui(c)
-        self.run_show("echo 'Normal horizontal direction: left -> left workspace, right -> right workspace.'", timeout=3)
+        self.run_show("echo 'Normal horizontal workspace direction: left -> left workspace, right -> right workspace.'", timeout=3)
 
     def invert_horizontal_direction(self):
         c = self._collect()
@@ -542,14 +556,30 @@ class Panel:
         c["enabled"]["swipe_left"] = True
         c["enabled"]["swipe_right"] = True
         self._push_config_to_ui(c)
-        self.run_show("echo 'Inverted horizontal direction: left -> right workspace, right -> left workspace.'", timeout=3)
+        self.run_show("echo 'Inverted horizontal workspace direction: left -> right workspace, right -> left workspace.'", timeout=3)
+
+    def normal_browser_direction(self):
+        c = self._collect()
+        c["actions"].update(BROWSER_NORMAL)
+        c["enabled"]["swipe_left"] = True
+        c["enabled"]["swipe_right"] = True
+        self._push_config_to_ui(c)
+        self.run_show("echo 'Normal browser direction: swipe left -> Back, swipe right -> Forward. Click Apply & Restart to activate.'", timeout=3)
+
+    def invert_browser_direction(self):
+        c = self._collect()
+        c["actions"].update(BROWSER_INVERTED)
+        c["enabled"]["swipe_left"] = True
+        c["enabled"]["swipe_right"] = True
+        self._push_config_to_ui(c)
+        self.run_show("echo 'Inverted browser direction: swipe left -> Forward, swipe right -> Back. Click Apply & Restart to activate.'", timeout=3)
 
     def disable_workspace_gestures(self):
         c = self._collect()
         for key in ["swipe_up", "swipe_down", "swipe_left", "swipe_right"]:
             c["enabled"][key] = False
         self._push_config_to_ui(c)
-        self.run_show("echo 'Disabled all workspace gestures. Click Apply & Restart to activate.'", timeout=3)
+        self.run_show("echo 'Disabled all workspace/browser gestures. Click Apply & Restart to activate.'", timeout=3)
 
     def apply_axis_inversion(self, invert_x, invert_y):
         c = self._collect()
