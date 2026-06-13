@@ -23,14 +23,17 @@ curl -fsSL "$BASE_URL/modern-v1.5.1/assets/magic-mouse-control-panel.svg" -o "$I
 printf '\033[1;32m[modern v1.5.1]\033[0m Applying final UI polish...\n'
 curl -fsSL "$BASE_URL/modern-v1.5.1/patch-modern-panel-v1.5.1.py" -o "$TMP/patch-modern-panel-v1.5.1.py"
 python3 "$TMP/patch-modern-panel-v1.5.1.py" "$PANEL"
+python3 -m py_compile "$PANEL"
 
 printf '\033[1;32m[modern v1.5.1]\033[0m Applying icon logo...\n'
 curl -fsSL "$BASE_URL/modern-v1.5.1/patch-modern-icon-v1.5.1.py" -o "$TMP/patch-modern-icon-v1.5.1.py"
 python3 "$TMP/patch-modern-icon-v1.5.1.py" "$PANEL"
+python3 -m py_compile "$PANEL"
 
 printf '\033[1;32m[modern v1.5.1]\033[0m Adding workspace target selector...\n'
-curl -fsSL "$BASE_URL/modern-v1.5.1/patch-modern-workspace-target-v1.5.1.py" -o "$TMP/patch-modern-workspace-target-v1.5.1.py"
-python3 "$TMP/patch-modern-workspace-target-v1.5.1.py" "$PANEL"
+curl -fsSL "$BASE_URL/modern-v1.5.1/patch-modern-workspace-target-fixed-v1.5.1.py" -o "$TMP/patch-modern-workspace-target-fixed-v1.5.1.py"
+python3 "$TMP/patch-modern-workspace-target-fixed-v1.5.1.py" "$PANEL"
+python3 -m py_compile "$PANEL"
 
 printf '\033[1;32m[modern v1.5.1]\033[0m Fixing details refresh...\n'
 curl -fsSL "$BASE_URL/modern-v1.5.1/patch-modern-details-v1.5.1.py" -o "$TMP/patch-modern-details-v1.5.1.py"
