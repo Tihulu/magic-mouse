@@ -9,7 +9,7 @@ Desktop-specific Apple Magic Mouse gesture packages for Linux.
 | `cosmic-wayland/` | `1.4.8` | Pop!_OS COSMIC / COSMIC Wayland | Stable Magic Mouse gesture setup with GUI control panel, bottom-right progress window, background actions, COSMIC workspace helper, and dock icon matching fix |
 | `cosmic-wayland/stable-v1.4.8/` | `1.4.8` | Pop!_OS COSMIC / COSMIC Wayland | Safe fallback installer for the stable simple UI |
 | `cosmic-wayland/modern-v1.5.0/` | `1.5.0-modern` | Pop!_OS COSMIC / COSMIC Wayland | Lightweight Apple-like Tk/ttk styling preview built on top of v1.4.8 |
-| `gnome-ubuntu/` | `0.2.1` | Ubuntu GNOME / Pop!_OS GNOME / GNOME Wayland | Full GNOME package with gesture daemon, GUI control panel, Shell extension, DBus workspace helper, systemd service, udev rule, and diagnostics |
+| `gnome-ubuntu/` | `0.2.2` | Ubuntu GNOME / Pop!_OS GNOME / GNOME Wayland | Full GNOME package with gesture daemon, GUI control panel, Shell extension, DBus workspace helper, systemd service, udev rule, and diagnostics |
 
 ## Pop!_OS COSMIC / COSMIC Wayland
 
@@ -135,15 +135,17 @@ Open the graphical control panel:
 magic-mouse-control-panel
 ```
 
-The GNOME panel uses the same quick direction idea as the COSMIC panel:
+The GNOME panel uses the same quick direction idea as the COSMIC panel, but it separates workspace direction from browser direction:
 
 - `Normal Workspace Direction`
 - `Invert Workspace Direction`
-- `Normal Horizontal Direction`
-- `Invert Horizontal Direction`
+- `Normal Browser Direction`
+- `Invert Browser Direction`
+- `Normal Horizontal Workspace`
+- `Invert Horizontal Workspace`
 - `Normal Physical Axes`, `Invert X Axis`, and `Invert Both Axes`
 
-Use the workspace/horizontal direction buttons first. Physical axis inversion is only for cases where the raw detected swipe direction itself is reversed.
+Use workspace direction for GNOME workspaces. Use browser direction for Alt+Left / Alt+Right browser navigation. Physical axis inversion is only for cases where the raw detected swipe direction itself is reversed.
 
 Service and log helpers:
 
@@ -189,4 +191,4 @@ gnome-shell --version 2>/dev/null || true
 - COSMIC and GNOME use different workspace mechanisms, so they are kept in separate folders.
 - COSMIC uses direct Magic Mouse HID input plus `cos-cli` workspace activation.
 - GNOME uses a Shell extension / DBus bridge because direct workspace control from outside GNOME Shell is restricted on modern GNOME Wayland sessions.
-- GNOME/Ubuntu 0.2.1 is the full GNOME package: daemon, GUI control panel, workspace backend, service helpers, udev permissions, and diagnostics.
+- GNOME/Ubuntu 0.2.2 is the full GNOME package: daemon, GUI control panel, workspace backend, service helpers, udev permissions, browser direction buttons, and diagnostics.
