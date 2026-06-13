@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_URL="https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland"
+PANEL="$HOME/.local/bin/magic-mouse-control-panel"
+DESKTOP="$HOME/.local/share/applications/magic-mouse-control-panel.desktop"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+printf '\033[1;32m[modern v1.5.1]\033[0m Installing stable COSMIC backend first...\n'
+bash -c "$(curl -fsSL "$BASE_URL/setup-cosmic-v1.4.8-relaxed.sh")" -- "$@"
+
+printf '\033[1;32m[modern v1.5.1]\033[0m Installing real modern control panel...\n'
+curl -fsSL "$BASE_URL/modern-v1.5.1/magic-mouse-control-panel-modern" -o "$PANEL"
+chmod +x "$PANEL"
+python3 -m py_compile "$PANEL"
+
+if [[ -f "$DESKTOP" ]]; then
+  sed -i 's/^Name=.*/Name=Magic Mouse Control Panel/' "$DESKTOP" || true
+  sed -i 's/^StartupWMClass=.*/StartupWMClass=Tk/' "$DESKTOP" || true
+  sed -i 's/^X-GNOME-WMClass=.*/X-GNOME-WMClass=Tk/' "$DESKTOP" || true
+fi
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+fi
+
+printf '\033[1;32m[modern v1.5.1]\033[0m Done. Launch with: gtk-launch magic-mouse-control-panel\n'
