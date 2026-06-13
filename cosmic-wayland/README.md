@@ -2,23 +2,23 @@
 
 Apple Magic Mouse gesture setup, workspace switching, and GUI control panel for **Pop!_OS / COSMIC Wayland**.
 
-This folder contains the current stable COSMIC Wayland package: **v1.4.7**.
+This folder contains the current stable COSMIC Wayland package: **v1.4.8**.
 
 The package avoids unreliable synthetic workspace keyboard shortcuts and uses a stateful `cosmic-ws` helper powered by `cos-cli` for COSMIC workspace switching.
 
 ## Quick install from GitHub
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.7.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.8.sh)"
 ```
 
 Alternative with `wget`:
 
 ```bash
-bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.7.sh)"
+bash -c "$(wget -qO- https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/setup-cosmic-v1.4.8.sh)"
 ```
 
-The setup script normalizes the installer label to **v1.4.7**, applies the non-blocking scroll patch, the fast startup patch, the bottom-right progress runner, and the COSMIC dock icon fix after installation.
+The setup script installs a clean **v1.4.8** control panel and fixes the v1.4.7 unterminated f-string regression.
 
 ## Manual install
 
@@ -26,13 +26,13 @@ The setup script normalizes the installer label to **v1.4.7**, applies the non-b
 git clone https://github.com/Tihulu/magic-mouse.git
 cd magic-mouse/cosmic-wayland
 chmod +x *.sh
-./setup-cosmic-v1.4.7.sh
+./setup-cosmic-v1.4.8.sh
 ```
 
 If your Magic Mouse Linux gestures source folder is somewhere else:
 
 ```bash
-MM_SOURCE=/full/path/to/magic-mouse-linux-gestures ./setup-cosmic-v1.4.7.sh
+MM_SOURCE=/full/path/to/magic-mouse-linux-gestures ./setup-cosmic-v1.4.8.sh
 ```
 
 Default source path used by this package:
@@ -50,11 +50,11 @@ Default source path used by this package:
 - user systemd service integration for the Magic Mouse gesture daemon
 - local udev rule and immediate ACL repair for Apple Magic Mouse HID raw access
 - Magic Mouse-style launcher icon
-- v1.4.7 background action runner for heavy GUI actions
+- background action runner for heavy GUI actions
 - small bottom-right progress window with percentage feedback
 - non-blocking natural/traditional scroll buttons
-- fast startup patch for the Tk control panel
 - dock icon matching fix for COSMIC
+- v1.4.7 syntax regression fix
 
 ## Expected behavior
 
@@ -114,5 +114,5 @@ The control panel window now stays responsive while heavy actions run in the bac
 ## Version
 
 ```text
-1.4.7
+1.4.8
 ```
