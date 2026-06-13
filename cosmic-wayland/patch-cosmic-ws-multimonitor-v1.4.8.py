@@ -48,16 +48,10 @@ workspace_exists() {
   ' <<< "$JSON" >/dev/null
 }
 
-mapfile -t GROUPS < <(
-  jq -r '.workspace_groups[]? | .index' <<< "$JSON" | sort -n
-)
-
-if [[ "${#GROUPS[@]}" -eq 0 ]]; then
-  echo "No COSMIC workspace groups were found." >&2
-  exit 1
-fi
-
-ACTIVE="$(
+# Per-monitor behavior: choose the workspace group from the currently
+# focused/activated window. Focus monitor 1 => monitor 1 changes.
+# Focus monitor 2 => monitor 2 changes.
+CURRENT="$(
   jq -r '
     first(
       .apps[]?
@@ -70,26 +64,36 @@ ACTIVE="$(
 
 GROUP=""
 CUR=""
-if [[ -n "$ACTIVE" ]]; then
-  read -r GROUP CUR <<< "$ACTIVE"
+if [[ -n "$CURRENT" ]]; then
+  read -r GROUP CUR <<< "$CURRENT"
 fi
 
-if [[ -z "${CUR:-}" && -f "$STATE_FILE" ]]; then
-  # Current format: all <workspace-index>. Legacy format: <group> <workspace-index>.
-  read -r A B < "$STATE_FILE" || true
-  if [[ "${A:-}" == "all" && -n "${B:-}" ]]; then
-    CUR="$B"
-  elif [[ -n "${B:-}" ]]; then
-    CUR="$B"
+# Fallback to the last focused group if no activated window is visible.
+if [[ -z "${GROUP:-}" || -z "${CUR:-}" ]]; then
+  if [[ -f "$STATE_FILE" ]]; then
+    read -r GROUP CUR < "$STATE_FILE" || true
+    if [[ "${GROUP:-}" == "all" ]]; then
+      GROUP=""
+      CUR=""
+    fi
   fi
 fi
 
-if [[ -z "${GROUP:-}" ]]; then
-  GROUP="${GROUPS[0]}"
+# Final fallback: first workspace group, so the helper still does something.
+if [[ -z "${GROUP:-}" || -z "${CUR:-}" ]]; then
+  CURRENT="$(
+    jq -r '
+      first(.workspace_groups[]?)
+      | if . == null then empty else "\(.index) \(.workspaces[0].index)" end
+    ' <<< "$JSON"
+  )"
+  if [[ -n "$CURRENT" ]]; then
+    read -r GROUP CUR <<< "$CURRENT"
+  fi
 fi
 
-if [[ -z "${CUR:-}" ]]; then
-  echo "No active workspace was found. Focus a window and try again." >&2
+if [[ -z "${GROUP:-}" || -z "${CUR:-}" ]]; then
+  echo "No active COSMIC workspace group was found. Focus a window on the target monitor and try again." >&2
   exit 1
 fi
 
@@ -116,8 +120,8 @@ for i in "${!IDX[@]}"; do
 done
 
 if [[ "$POS" == "-1" ]]; then
-  # Fall back to the closest valid workspace in the active/reference group.
-  POS="0"
+  echo "The active workspace was not found in group $GROUP." >&2
+  exit 1
 fi
 
 if [[ "$DIR" == "up" ]]; then
@@ -132,15 +136,11 @@ fi
 
 TARGET="${IDX[$TARGET_POS]}"
 
-# COSMIC can expose one workspace group per monitor. Activate the same target
-# workspace index on every group so multi-monitor desktops move together.
-for G in "${GROUPS[@]}"; do
-  if workspace_exists "$G" "$TARGET"; then
-    "$COS_CLI" ws-activate -g "$G" -w "$TARGET" >/dev/null 2>&1 || true
-  fi
-done
-
-echo "all $TARGET" > "$STATE_FILE"
+# Activate only the focused/active monitor's workspace group.
+if workspace_exists "$GROUP" "$TARGET"; then
+  "$COS_CLI" ws-activate -g "$GROUP" -w "$TARGET"
+  echo "$GROUP $TARGET" > "$STATE_FILE"
+fi
 '''
 
 
