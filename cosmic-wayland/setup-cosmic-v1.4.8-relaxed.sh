@@ -17,8 +17,8 @@ curl -fsSL "https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-way
 python3 "$TMP/patch-sensitivity-v1.4.8.py" "$panel"
 python3 -m py_compile "$panel"
 
-say "Applying multi-monitor COSMIC workspace helper..."
-curl -fsSL "https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/patch-cosmic-ws-multimonitor-v1.4.8.py" -o "$TMP/patch-cosmic-ws-multimonitor-v1.4.8.py"
-python3 "$TMP/patch-cosmic-ws-multimonitor-v1.4.8.py" "$cosmic_ws"
+say "Applying focused-monitor COSMIC workspace helper..."
+curl -fsSL "https://raw.githubusercontent.com/Tihulu/magic-mouse/main/cosmic-wayland/patch-cosmic-ws-desktop-focus-v1.4.8.py" -o "$TMP/patch-cosmic-ws-desktop-focus-v1.4.8.py"
+python3 "$TMP/patch-cosmic-ws-desktop-focus-v1.4.8.py" "$cosmic_ws"
 
-say "Done. Workspaces now switch across all COSMIC monitor groups."
+say "Done. Workspaces now follow the focused COSMIC monitor group."
