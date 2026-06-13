@@ -21,6 +21,7 @@ MODERN_STYLE = '''    def _apply_modern_style(self):
         style.configure("TLabel", background=bg, foreground=text, font=("SF Pro Display", 10))
         style.configure("Title.TLabel", background=bg, foreground=text, font=("SF Pro Display", 22, "bold"))
         style.configure("Muted.TLabel", background=bg, foreground=muted, font=("SF Pro Display", 10))
+        style.configure("Mode.TLabel", background=bg, foreground=text, font=("SF Pro Display", 11, "bold"))
         style.configure("TLabelframe", background=card, borderwidth=1, relief="solid")
         style.configure("TLabelframe.Label", background=card, foreground=text, font=("SF Pro Display", 12, "bold"))
         style.configure("TNotebook", background=bg, borderwidth=0)
@@ -44,6 +45,7 @@ def patch(path: Path) -> None:
     text = text.replace('self.status_var = tk.StringVar(value="Loading...")', 'self.status_var = tk.StringVar(value="Checking status…")')
     text = text.replace('ttk.Label(header, text=f"Magic Mouse Control Panel v{VERSION}", font=("Sans", 16, "bold"))', 'ttk.Label(header, text="Magic Mouse", style="Title.TLabel")')
     text = text.replace('ttk.Label(header, textvariable=self.session_var)', 'ttk.Label(header, textvariable=self.session_var, style="Muted.TLabel")')
+    text = text.replace('ttk.Label(header, textvariable=self.mode_var)', 'ttk.Label(header, textvariable=self.mode_var, style="Mode.TLabel")')
     text = text.replace('ttk.Label(header, textvariable=self.status_var)', 'ttk.Label(header, textvariable=self.status_var, style="Muted.TLabel")')
     text = text.replace('ttk.Button(setup, text="Apply Stable Defaults", command=self.apply_stable_defaults)', 'ttk.Button(setup, text="Apply Stable Defaults", command=self.apply_stable_defaults, style="Accent.TButton")')
 
