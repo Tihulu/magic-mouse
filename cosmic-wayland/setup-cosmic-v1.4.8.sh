@@ -29,11 +29,14 @@ say "Running COSMIC Wayland installer..."
 
 control_panel="$HOME/.local/bin/magic-mouse-control-panel"
 if [[ -f "$control_panel" ]]; then
+  say "Applying v1.4.8 status text fix..."
+  sed -i 's/value="Loading\.\.\."/value="Checking status…"/' "$control_panel"
   say "Checking installed control panel syntax..."
   python3 -m py_compile "$control_panel" || {
     warn "Installed control panel failed syntax check. Reinstalling clean copy from repository."
     cp "bin/magic-mouse-control-panel" "$control_panel"
     chmod +x "$control_panel"
+    sed -i 's/value="Loading\.\.\."/value="Checking status…"/' "$control_panel"
     python3 -m py_compile "$control_panel"
   }
 fi
@@ -55,4 +58,4 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
 fi
 
 say "Done. Launch with: gtk-launch magic-mouse-control-panel"
-say "This build fixes the v1.4.7 unterminated f-string regression."
+say "This build fixes the v1.4.7 unterminated f-string regression and avoids the stale Loading label."
