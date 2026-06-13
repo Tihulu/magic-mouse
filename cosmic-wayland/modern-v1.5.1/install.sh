@@ -13,6 +13,10 @@ bash -c "$(curl -fsSL "$BASE_URL/setup-cosmic-v1.4.8-relaxed.sh")" -- "$@"
 printf '\033[1;32m[modern v1.5.1]\033[0m Installing real modern control panel...\n'
 curl -fsSL "$BASE_URL/modern-v1.5.1/magic-mouse-control-panel-modern" -o "$PANEL"
 chmod +x "$PANEL"
+
+printf '\033[1;32m[modern v1.5.1]\033[0m Applying final UI polish...\n'
+curl -fsSL "$BASE_URL/modern-v1.5.1/patch-modern-panel-v1.5.1.py" -o "$TMP/patch-modern-panel-v1.5.1.py"
+python3 "$TMP/patch-modern-panel-v1.5.1.py" "$PANEL"
 python3 -m py_compile "$PANEL"
 
 if [[ -f "$DESKTOP" ]]; then
